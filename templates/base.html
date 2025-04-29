@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Trinity PDF Suite{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Link to your static CSS file if you create one -->
+    <!-- <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"> -->
+    <style>
+        /* Basic Styles - you can move these to style.css */
+        :root {
+            --primary-color: #0056b3;
+            --secondary-color: #f8f9fa;
+            --accent-color: #28a745;
+            --accent-hover-color: #218838;
+            --text-color: #343a40;
+            --border-color: #dee2e6;
+            --error-bg: #f8d7da;
+            --error-border: #f5c6cb;
+            --error-text: #721c24;
+            --success-bg: #d4edda;
+            --success-border: #c3e6cb;
+            --success-text: #155724;
+            --warning-bg: #fff3cd;
+            --warning-border: #ffeeba;
+            --warning-text: #856404;
+            --card-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            --border-radius: 6px;
+        }
+        body {
+            font-family: 'Roboto', sans-serif; margin: 0; padding: 20px;
+            background-color: var(--secondary-color); color: var(--text-color);
+            line-height: 1.6; display: flex; flex-direction: column; min-height: 100vh;
+        }
+        header { background-color: var(--primary-color); color: white; padding: 15px 30px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+        header h1 { margin: 0; font-weight: 500; }
+        header nav a { color: white; text-decoration: none; margin-left: 20px; font-weight: 400;}
+        header nav a:hover { text-decoration: underline; }
+        .container { max-width: 900px; margin: 20px auto; background: #ffffff; padding: 30px; border-radius: var(--border-radius); box-shadow: var(--card-shadow); flex-grow: 1; }
+        h1, h2, h3 { color: var(--primary-color); }
+        h1 { text-align: center; margin-bottom: 20px; }
+        h2 { border-bottom: 2px solid var(--border-color); padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
+        .flash-messages { list-style: none; padding: 0; margin: 0 0 20px 0; }
+        .flash-messages li { padding: 15px 20px; margin-bottom: 10px; border: 1px solid; border-radius: var(--border-radius); font-weight: 500; }
+        .flash-messages .error { color: var(--error-text); background-color: var(--error-bg); border-color: var(--error-border); }
+        .flash-messages .success { color: var(--success-text); background-color: var(--success-bg); border-color: var(--success-border); }
+        .flash-messages .warning { color: var(--warning-text); background-color: var(--warning-bg); border-color: var(--warning-border); }
+        label { display: block; margin-bottom: 8px; font-weight: 500; }
+        input[type="text"], input[type="password"], input[type="number"], input[type="file"], select, button {
+            width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid var(--border-color); border-radius: var(--border-radius); box-sizing: border-box; font-size: 1rem;
+        }
+        input[type="file"] { padding: 8px 12px; }
+        button { background-color: var(--accent-color); color: white; cursor: pointer; font-weight: 500; transition: background-color 0.2s; }
+        button:hover { background-color: var(--accent-hover-color); }
+        .tool-section { margin-bottom: 30px; padding: 20px; border: 1px solid var(--border-color); border-radius: var(--border-radius); background-color: #fdfdfd; }
+        .tool-section h3 { margin-top: 0; color: var(--text-color); }
+        footer { text-align: center; margin-top: 30px; padding: 15px; color: #6c757d; font-size: 0.9em; border-top: 1px solid var(--border-color); }
+        .hidden { display: none; }
+        .options-group { border: 1px dashed var(--border-color); padding: 15px; margin-top: 15px; margin-bottom: 20px; border-radius: var(--border-radius); background-color: #f8f9fa; }
+        .download-link { display: inline-block; padding: 10px 20px; background-color: var(--primary-color); color: white; text-decoration: none; border-radius: var(--border-radius); font-weight: 500; transition: background-color 0.2s; }
+        .download-link:hover { background-color: #00418a; }
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .container { padding: 15px; }
+            header { padding: 10px 15px; }
+            header h1 { font-size: 1.5rem; }
+            header nav a { margin-left: 10px; }
+            button { padding: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Trinity PDF Suite</h1>
+        <nav>
+            <a href="{{ url_for('index') }}">Home</a>
+            <a href="{{ url_for('ai_tools_page') }}">AI Tools</a>
+            <a href="{{ url_for('pdf_tools_page') }}">PDF Tools</a>
+        </nav>
+    </header>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <ul class="flash-messages">
+            {% for category, message in messages %}
+              <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+          {% endif %}
+        {% endwith %}
+
+        {% block content %}
+        <!-- Page-specific content will go here -->
+        {% endblock %}
+    </div>
+
+    <footer>
+        © {{ now().year }} Trinity PDF Suite. Powered by Flask & Google Gemini.
+    </footer>
+
+    {% block scripts %}
+    <!-- Page-specific scripts can go here -->
+    {% endblock %}
+</body>
+</html>

@@ -1,0 +1,29 @@
+
+# Environments
+venv/
+*.venv
+env/
+trinity-ai/
+pdf-tools/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Output/Uploads
+uploads/
+output/
+
+# Configuration
+.env
+*.env
+
+# IDE files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db

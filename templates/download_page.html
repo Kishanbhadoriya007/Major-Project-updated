@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Download File - Trinity PDF Suite{% endblock %}
+
+{% block content %}
+<h1>Download Your Processed File</h1>
+
+<p>Your file '<strong>{{ filename }}</strong>' is ready for download.</p>
+
+<div style="margin: 30px 0; text-align: center;">
+    <a href="{{ download_url }}" class="download-link" download>
+        Download {{ filename }}
+    </a>
+</div>
+
+<p style="text-align: center;">
+    <a href="{{ url_for('index') }}">Go back to Home</a> |
+    <a href="{{ request.referrer or url_for('index') }}">Go back to previous tool</a>
+</p>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Optional: Auto-trigger download after a short delay
+  /*
+  document.addEventListener('DOMContentLoaded', function() {
+    const downloadLink = document.querySelector('.download-link');
+    if (downloadLink) {
+        setTimeout(function() {
+           // Check if the link still exists (user might have navigated away)
+           if (document.body.contains(downloadLink)) {
+                console.log('Auto-triggering download for:', downloadLink.href);
+                // window.location.href = downloadLink.href; // Can cause issues if blocked
+                downloadLink.click(); // More reliable way to trigger download
+           }
+        }, 1500); // 1.5 second delay
+    }
+  });
+  */
+</script>
+{% endblock %}

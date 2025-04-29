@@ -1,0 +1,24 @@
+# Major-Project/requirements.txt
+
+# Core Flask
+Flask>=2.2 # Use a reasonably recent version
+python-dotenv>=0.20
+Werkzeug>=2.2 # Match Flask version if needed
+
+# Gemini AI
+google-generativeai>=0.4 # Check for latest stable version
+
+# PDF Text Extraction
+PyMuPDF>=1.23 # fitz
+
+# PDF Manipulation (from Pdf-tool)
+pypdf>=4.0.0 # Or latest stable version
+Pillow>=9.0.0 # For image handling (Image->PDF, PDF->Image bg handling)
+
+# PDF to Image Conversion (Optional - requires Poppler)
+pdf2image>=1.16.0
+
+# Production Server (Recommended)
+gunicorn>=20.0.0
+
+# Add other specific dependencies if needed
