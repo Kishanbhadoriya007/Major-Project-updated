@@ -1,0 +1,335 @@
+/* static/css/style.css */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Montserrat', 'Roboto', sans-serif; /* Added Roboto as fallback */
+    color: #ffffff; /* Default text color white for dark theme */
+}
+
+html, body {
+   height: 100%;
+   width: 100%;
+   background-color: #111; /* Dark background */
+   color: #ffffff;
+   overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+/* --- Custom Cursor --- */
+#cursor{
+    height: 25px;
+    width: 25px;
+    background-color: #00BFFF; /* Deep Sky Blue accent */
+    border-radius: 50%;
+    position: fixed;
+    z-index: 9999; /* Highest index */
+    mix-blend-mode: difference; /* Cool effect against content */
+    transition: transform 0.1s ease; /* Add slight transition */
+    pointer-events: none; /* Allow clicking through cursor */
+}
+
+#cursor-blur{
+    height: 400px; /* Slightly smaller blur */
+    width: 400px;
+    background-color: rgba(0, 191, 255, 0.1); /* Semi-transparent blue blur */
+    border-radius: 50%;
+    position: fixed;
+    filter: blur(80px); /* Increased blur effect */
+    z-index: 9; /* Below cursor, above most content */
+    pointer-events: none; /* Allow clicking through */
+    transition: transform 0.2s ease-out; /* Smooth movement */
+}
+
+/* --- Header/Navigation --- */
+header#nav { /* Target header specifically */
+    height: 100px; /* Initial height */
+    width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Space out logo and nav links */
+    padding: 0 5vw; /* Use viewport width for padding */
+    gap: 40px;
+    background-color: transparent; /* Start transparent */
+    transition: background-color 0.5s ease, height 0.5s ease; /* Smooth transitions */
+    z-index: 100; /* Above content, below cursor */
+}
+
+/* Style for when scrolled */
+header#nav.scrolled {
+    height: 80px;
+    background-color: rgba(0, 0, 0, 0.85); /* Dark semi-transparent bg on scroll */
+    backdrop-filter: blur(5px);
+}
+
+header#nav h1 {
+    font-size: 1.8rem; /* Adjust size */
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+header#nav nav {
+    display: flex;
+    gap: 30px;
+}
+
+header#nav nav a {
+    color: #fff;
+    text-decoration: none;
+    text-transform: uppercase;
+    font-weight: 500;
+    font-size: 0.9rem;
+    position: relative;
+    transition: color 0.3s ease;
+}
+
+header#nav nav a::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 2px;
+    bottom: -5px;
+    left: 0;
+    background-color: #00BFFF; /* Accent color for underline */
+    transition: width 0.3s ease;
+}
+
+header#nav nav a:hover {
+    color: #00BFFF; /* Highlight on hover */
+}
+
+header#nav nav a:hover::after {
+    width: 100%;
+}
+
+/* --- Main Content Container --- */
+.container {
+    max-width: 950px;
+    margin: 140px auto 50px auto; /* Top margin accounts for fixed header + space */
+    background: rgba(40, 40, 40, 0.8); /* Darker container background */
+    padding: 35px;
+    border-radius: 10px;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    flex-grow: 1;
+    position: relative;
+    z-index: 10;
+    border: 1px solid #333; /* Subtle border */
+}
+
+/* --- Headings --- */
+.container h1, .container h2, .container h3 {
+    color: #00BFFF; /* Primary accent color for headings */
+    font-weight: 600;
+}
+
+.container h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2.5rem;
+    border-bottom: 2px solid #0077aa; /* Darker accent border */
+    padding-bottom: 10px;
+    display: inline-block; /* Center the heading block */
+}
+.container h2 {
+    border-bottom: 1px solid #444;
+    padding-bottom: 10px;
+    margin-top: 35px;
+    margin-bottom: 25px;
+    font-size: 1.8rem;
+}
+.container h3 {
+    margin-top: 0;
+    color: #eee; /* Lighter subheading color */
+    font-size: 1.4rem;
+    margin-bottom: 15px;
+}
+
+/* --- Flash Messages --- */
+.flash-messages {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 25px 0;
+}
+.flash-messages li {
+    padding: 15px 20px;
+    margin-bottom: 10px;
+    border: 1px solid;
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    color: #fff; /* White text for all */
+}
+.flash-messages .error {
+    background-color: rgba(217, 67, 50, 0.7); /* Darker red */
+    border-color: #d94332;
+}
+.flash-messages .success {
+    background-color: rgba(40, 167, 69, 0.7); /* Darker green */
+    border-color: #28a745;
+}
+.flash-messages .warning {
+    background-color: rgba(255, 180, 0, 0.7); /* Darker yellow/orange */
+    border-color: #ffb400;
+}
+
+/* --- Forms & Buttons --- */
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #ccc; /* Lighter label color */
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+input[type="file"],
+select,
+button {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border: 1px solid #555; /* Darker border */
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 1rem;
+    background-color: #333; /* Dark input background */
+    color: #eee; /* Light input text */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+input[type="file"] {
+    padding: 10px 15px;
+    cursor: pointer;
+}
+
+input[type="file"]::file-selector-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: background-color 0.2s ease;
+}
+input[type="file"]::file-selector-button:hover {
+     background-color: #0056b3;
+}
+
+
+input:focus, select:focus {
+    outline: none;
+    border-color: #00BFFF; /* Highlight border on focus */
+    box-shadow: 0 0 0 3px rgba(0, 191, 255, 0.2); /* Subtle glow */
+}
+
+button {
+    background-color: #00BFFF; /* Accent color button */
+    color: #fff;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.3s ease, transform 0.1s ease;
+    border: none;
+    padding: 14px 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+button:hover {
+    background-color: #009acd; /* Slightly darker blue on hover */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 191, 255, 0.2);
+}
+button:active {
+    transform: translateY(0);
+}
+
+/* --- Tool Sections & Options --- */
+.tool-section {
+    margin-bottom: 35px;
+    padding: 25px;
+    border: 1px solid #444; /* Slightly darker border */
+    border-radius: 8px;
+    background-color: #2a2a2a; /* Background for sections */
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+}
+
+.options-group {
+    border: 1px dashed #555;
+    padding: 20px;
+    margin-top: 20px;
+    margin-bottom: 25px;
+    border-radius: var(--border-radius);
+    background-color: #333; /* Darker background for options */
+}
+
+/* --- Download Link --- */
+.download-link {
+    display: inline-block;
+    padding: 12px 25px;
+    background-color: #28a745; /* Green accent for download */
+    color: white;
+    text-decoration: none;
+    border-radius: var(--border-radius);
+    font-weight: 600;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.download-link:hover {
+    background-color: #218838;
+     transform: translateY(-2px);
+     box-shadow: 0 4px 10px rgba(40, 167, 69, 0.2);
+}
+.download-link:active {
+    transform: translateY(0);
+}
+
+/* --- Footer --- */
+footer {
+    text-align: center;
+    margin-top: 40px;
+    padding: 20px;
+    color: #aaa; /* Lighter grey for footer text */
+    font-size: 0.9em;
+    border-top: 1px solid #333;
+    position: relative;
+    z-index: 10;
+}
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+    header#nav {
+        padding: 0 3vw;
+        height: 80px; /* Smaller header on mobile */
+    }
+    header#nav h1 {
+        font-size: 1.5rem;
+    }
+    header#nav nav {
+        gap: 15px; /* Less gap */
+    }
+     header#nav nav a {
+        font-size: 0.8rem;
+     }
+
+    .container {
+        margin: 110px auto 30px auto; /* Adjust top margin for smaller header */
+        padding: 20px;
+        max-width: 95%;
+    }
+     .container h1 { font-size: 2rem; }
+     .container h2 { font-size: 1.5rem; }
+     .container h3 { font-size: 1.2rem; }
+
+    button { padding: 12px; font-size: 0.9rem; }
+    .download-link { padding: 10px 20px; font-size: 0.9rem;}
+
+     #cursor, #cursor-blur {
+        display: none; /* Hide custom cursor on touch devices */
+    }
+}
