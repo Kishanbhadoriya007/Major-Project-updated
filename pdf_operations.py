@@ -1,50 +1,47 @@
-# 1. Ensure OUTPUT_DIR points to the correct place relative to the merged project root.
-# 2. Ensure POPPLER_PATH configuration is handled (maybe via environment variables).
+# Major-Project/pdf_operations.py
+# (Ensure all necessary imports from previous answers are here:
+# os, warnings, datetime, Path, PdfReader, PdfWriter, PdfReadError,
+# FileNotDecryptedError, Image, convert_from_path, subprocess, io, logging, re, zipfile)
 
 import os
+import re
+import io
+import zipfile
 import warnings
+import logging
+import subprocess
 from datetime import datetime
 from pathlib import Path
-from pypdf import PdfReader, PdfWriter # Removed Transformation as it wasn't used
+from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError, FileNotDecryptedError
-from PIL import Image # Keep Pillow
-from pdf2image import convert_from_path # Keep pdf2image
-import subprocess # For optional LibreOffice conversion
-import io
-import logging # Use logging
+from PIL import Image
+from pdf2image import convert_from_path
 
 logger = logging.getLogger(__name__)
 
 # --- Configuration ---
-# Use Path for better cross-platform compatibility, relative to this file's location
-# Assume this script is in the project root. If moved, adjust accordingly.
-OUTPUT_DIR = Path("output") # App will ensure this exists
-# POPPLER_PATH can be set via environment variable or detected
+OUTPUT_DIR = Path("output")
 POPPLER_PATH = os.environ.get('POPPLER_PATH', None)
-
-# Suppress specific warnings from pypdf if needed
 warnings.filterwarnings("ignore", category=UserWarning, module='pypdf')
 
 # --- Helper Functions ---
+def ensure_output_dir():
+    """Creates the output directory if it doesn't exist."""
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # logger.info(f"Ensured output directory exists: {OUTPUT_DIR.resolve()}") # Optional logging
+
 def get_output_filename(base_name, suffix, extension):
     """Generates a unique output filename in the OUTPUT_DIR."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    # Sanitize base_name for file system safety
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S%f") # Added microseconds
     safe_base = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in str(base_name))
-    # Limit length to avoid issues on some filesystems
     max_base_len = 100
     safe_base = safe_base[:max_base_len]
     filename = f"{safe_base}_{suffix}_{timestamp}{extension}"
     return OUTPUT_DIR / filename
 
-def ensure_output_dir():
-    """Creates the output directory if it doesn't exist."""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Ensured output directory exists: {OUTPUT_DIR.resolve()}")
-
-
 # --- Core PDF Operations ---
 
+# (Paste the working merge_pdfs function from previous answers here)
 def merge_pdfs(pdf_files, output_filename_base="merged"):
     """Merges multiple PDF file streams into one."""
     ensure_output_dir()
@@ -69,7 +66,7 @@ def merge_pdfs(pdf_files, output_filename_base="merged"):
 
                 merger.append(reader)
                 processed_count += 1
-                logger.info(f"Appended '{filename_for_log}' to merge.")
+                # logger.info(f"Appended '{filename_for_log}' to merge.") # Verbose logging
             except PdfReadError as read_err:
                  logger.error(f"Error reading PDF stream '{filename_for_log}': {read_err}. Skipping.")
                  continue # Skip invalid PDF
@@ -77,7 +74,7 @@ def merge_pdfs(pdf_files, output_filename_base="merged"):
                 logger.error(f"Unexpected error processing stream '{filename_for_log}' for merge: {e}. Skipping.", exc_info=True)
                 continue # Skip on other errors
 
-        if processed_count < 1: # Or maybe < 2 depending on desired behavior
+        if processed_count < 1:
             return None, "No valid PDF files could be processed for merging."
 
         output_path = get_output_filename(output_filename_base, "merged", ".pdf")
@@ -85,213 +82,475 @@ def merge_pdfs(pdf_files, output_filename_base="merged"):
             merger.write(f_out)
         merger.close()
         logger.info(f"Successfully merged {processed_count} files into {output_path}")
-        return output_path, None # Return path and no error
+        return output_path, None
     except Exception as e:
         logger.error(f"Error during final merge write operation: {e}", exc_info=True)
-        if merger: merger.close() # Attempt to close merger if open
+        if merger: merger.close()
         return None, f"Error finalizing merged PDF: {e}"
 
-# ... (Keep split_pdf, rotate_pdf, add_password, remove_password as they were in the original pdf_operations.py, just ensure they use logger) ...
 
-# Example adjustment for split_pdf using logger:
-def split_pdf(pdf_file, ranges_str, output_filename_base="split"):
-    """Splits a PDF based on page ranges (e.g., '1-3, 5, 8-')."""
+# --- SPLIT PDF (Multi-File Version) ---
+# (Paste the parse_page_ranges helper function from previous answer here)
+def parse_page_ranges(ranges_str, total_pages):
+    """Parses a range string (e.g., '1-3, 5, 8-') into a list of tuples.
+       Each tuple contains: (range_string_part, list_of_0_based_indices).
+       Returns None, error_message if parsing fails.
+    """
+    if not ranges_str:
+        return None, "Page range string cannot be empty."
+
+    parsed_ranges = []
+    parts = ranges_str.split(',')
+
+    for part in parts:
+        part = part.strip()
+        if not part: continue
+
+        indices = set()
+        try:
+            if '-' in part:
+                start_str, end_str = part.split('-', 1)
+                start = int(start_str) if start_str else 1
+                end = int(end_str) if end_str else total_pages
+                if not (1 <= start <= end <= total_pages):
+                    raise ValueError(f"Range '{part}' is invalid for page count {total_pages}.")
+                indices.update(range(start - 1, end))
+            else:
+                page_num = int(part)
+                if not (1 <= page_num <= total_pages):
+                    raise ValueError(f"Page number '{part}' is out of bounds (1-{total_pages}).")
+                indices.add(page_num - 1)
+
+            if indices:
+                # Sanitize part string for use in filenames
+                safe_part_str = re.sub(r'[^\w\-]+', '_', part)
+                parsed_ranges.append((safe_part_str, sorted(list(indices))))
+
+        except ValueError as ve:
+            logger.error(f"Invalid page range format: {ve}")
+            return None, f"Invalid page range format: {ve}"
+
+    if not parsed_ranges:
+        return None, "No valid pages or ranges specified."
+
+    return parsed_ranges, None
+
+# (Paste the split_pdf_to_multiple_files function from previous answer here)
+def split_pdf_to_multiple_files(pdf_file_stream, ranges_str, output_filename_base="split"):
+    """Splits a PDF based on page ranges into MULTIPLE output PDF files.
+       Returns a list of output file paths, or None and an error message.
+    """
     ensure_output_dir()
     output_paths = []
-    filename_for_log = getattr(pdf_file, 'filename', 'N/A')
+    reader = None
+    filename_for_log = getattr(pdf_file_stream, 'filename', 'N/A')
+
     try:
-        reader = PdfReader(pdf_file)
+        # Ensure stream is at the beginning before reading
+        pdf_file_stream.seek(0)
+        reader = PdfReader(pdf_file_stream)
+        pdf_file_stream.seek(0) # Reset stream just in case reader consumes it
+
         if reader.is_encrypted:
             try:
+                # Try decrypting with empty password. If it requires a password, fail.
                 if reader.decrypt('') == 0:
                     err_msg = f"Error: Input PDF '{filename_for_log}' is password protected."
                     logger.error(err_msg)
-                    return [], err_msg
+                    return None, err_msg
             except FileNotDecryptedError:
                  err_msg = f"Error: Input PDF '{filename_for_log}' is password protected."
                  logger.error(err_msg)
-                 return [], err_msg
+                 return None, err_msg
 
         total_pages = len(reader.pages)
-        logger.info(f"Parsing ranges '{ranges_str}' for '{filename_for_log}' ({total_pages} pages total).")
+        logger.info(f"Processing multi-split for '{filename_for_log}' ({total_pages} pages) with ranges '{ranges_str}'.")
 
-        # Parse ranges (this is a simplified parser)
-        parts = ranges_str.split(',')
-        page_indices_to_extract = set() # Use 0-based indexing
+        # Use the parser helper function
+        parsed_ranges, error_msg = parse_page_ranges(ranges_str, total_pages)
+        if error_msg:
+            return None, error_msg
+        
+        if parsed_ranges and len(parsed_ranges) > 10:
+            limit_err = "Error: Splitting is limited to a maximum of 10 output files per request."
+            logger.warning(f"{limit_err} Requested ranges would create {len(parsed_ranges)} files.")
+            return None, limit_err
+        
+        if not parsed_ranges:
+            logger.warning("No valid ranges resulted in pages to extract.")
+            return [], None # Return empty list if no ranges valid
 
-        for part in parts:
-            part = part.strip()
-            if not part: continue # Skip empty parts
+        # Loop through each parsed range part
+        for range_label, indices in parsed_ranges:
+            if not indices: continue # Skip empty index lists
 
-            if '-' in part:
-                start_str, end_str = part.split('-', 1)
+            writer = PdfWriter()
+            logger.info(f"Creating split file for range '{range_label}' with pages (0-based): {indices}")
+            for index in indices:
                 try:
-                    start = int(start_str) if start_str else 1
-                    end = int(end_str) if end_str else total_pages
-                    if start < 1 or end > total_pages or start > end:
-                        raise ValueError(f"Range values out of bounds (1-{total_pages})")
-                    page_indices_to_extract.update(range(start - 1, end))
-                except ValueError as ve:
-                     err_msg = f"Invalid range format: '{part}'. {ve}"
-                     logger.error(err_msg)
-                     return [], err_msg # Return error immediately
-            else:
-                try:
-                    page_num = int(part)
-                    if 1 <= page_num <= total_pages:
-                        page_indices_to_extract.add(page_num - 1)
-                    else:
-                        raise ValueError(f"Page number out of bounds (1-{total_pages})")
-                except ValueError as ve:
-                     err_msg = f"Invalid page number: '{part}'. {ve}"
-                     logger.error(err_msg)
-                     return [], err_msg # Return error immediately
+                    # Add page *from the original reader*
+                    writer.add_page(reader.pages[index])
+                except IndexError:
+                     logger.error(f"Page index {index} out of bounds for PDF {filename_for_log}. Skipping page.")
+                     continue # Skip invalid index
 
-        if not page_indices_to_extract:
-            logger.warning("No valid pages selected for splitting.")
-            return [], "No valid pages selected for splitting."
+            if not writer.pages:
+                logger.warning(f"No valid pages added for range '{range_label}'. Skipping file creation.")
+                continue # Don't create an empty PDF
 
-        # Sort indices to process in order
-        sorted_indices = sorted(list(page_indices_to_extract))
-        logger.info(f"Selected page indices (0-based): {sorted_indices}")
+            split_suffix = f"split_{range_label}"
+            output_path = get_output_filename(output_filename_base, split_suffix, ".pdf")
+
+            try:
+                with open(output_path, "wb") as f_out:
+                    writer.write(f_out)
+                writer.close()
+                output_paths.append(output_path)
+                logger.info(f"Created split file: {output_path}")
+            except Exception as write_err:
+                logger.error(f"Failed to write split file for range {range_label}: {write_err}", exc_info=True)
+                if writer: writer.close()
+                # Cleanup already created files before returning error
+                for p in output_paths:
+                     try: os.remove(p)
+                     except OSError: pass
+                return None, f"Error writing split file for range {range_label}: {write_err}"
+
+        logger.info(f"Successfully created {len(output_paths)} split PDF file(s).")
+        return output_paths, None
+
+    except (PdfReadError, ValueError, Exception) as e:
+        logger.error(f"Error during multi-split PDF process for {filename_for_log}: {e}", exc_info=True)
+        # Cleanup any files created before the error
+        for p in output_paths:
+             try: os.remove(p)
+             except OSError: pass
+        return None, f"Error splitting PDF: {e}"
+
+# --- END SPLIT PDF ---
 
 
-        writer = PdfWriter()
-        for index in sorted_indices:
-            writer.add_page(reader.pages[index])
+# --- ROTATE PDF ---
+# (Paste the working rotate_pdf function definition from previous answer here)
+def rotate_pdf(pdf_file_stream, rotation_angle, output_filename_base="rotated"):
+    """Rotates all pages in a PDF stream by a specified angle (90, 180, 270)."""
+    ensure_output_dir()
+    if rotation_angle not in [90, 180, 270]:
+        logger.error(f"Invalid rotation angle specified: {rotation_angle}")
+        return None, "Error: Rotation angle must be 90, 180, or 270."
 
-        # Create a more descriptive filename suffix from ranges
-        range_suffix = ranges_str.replace(',', '_').replace('-', 'to').replace(' ', '')
-        # Truncate if too long
-        if len(range_suffix) > 50: range_suffix = range_suffix[:47] + '...'
+    writer = PdfWriter()
+    filename_for_log = getattr(pdf_file_stream, 'filename', 'N/A')
+    try:
+        pdf_file_stream.seek(0) # Ensure stream is at start
+        reader = PdfReader(pdf_file_stream)
+        pdf_file_stream.seek(0) # Reset
 
-        output_path = get_output_filename(output_filename_base, f"split_{range_suffix}", ".pdf")
+        if reader.is_encrypted:
+            try:
+                if reader.decrypt('') == 0:
+                    logger.error(f"Cannot rotate password-protected PDF: {filename_for_log}")
+                    return None, f"Error: Input PDF '{filename_for_log}' is password protected."
+            except FileNotDecryptedError:
+                logger.error(f"Cannot rotate password-protected PDF: {filename_for_log}")
+                return None, f"Error: Input PDF '{filename_for_log}' is password protected."
+
+        logger.info(f"Rotating {len(reader.pages)} pages in {filename_for_log} by {rotation_angle} degrees.")
+        for page in reader.pages:
+            page.rotate(rotation_angle)
+            writer.add_page(page)
+
+        output_path = get_output_filename(output_filename_base, f"rotated_{rotation_angle}", ".pdf")
         with open(output_path, "wb") as f_out:
             writer.write(f_out)
         writer.close()
-        output_paths.append(output_path)
-        logger.info(f"Successfully created split PDF: {output_path}")
+        logger.info(f"Rotated PDF saved to: {output_path}")
+        return output_path, None
 
-        return output_paths, None
-    except FileNotDecryptedError:
-        err_msg = f"Error: Input PDF '{filename_for_log}' is password protected."
-        logger.error(err_msg)
-        return [], err_msg
-    except PdfReadError as read_err:
-        err_msg = f"Error reading PDF '{filename_for_log}': {read_err}"
-        logger.error(err_msg)
-        return [], err_msg
     except Exception as e:
-        logger.error(f"Error splitting PDF '{filename_for_log}': {e}", exc_info=True)
-        if 'writer' in locals() and writer: writer.close() # Attempt cleanup
-        return [], f"Error splitting PDF: {e}"
+        logger.error(f"Error rotating PDF {filename_for_log}: {e}", exc_info=True)
+        if writer: writer.close()
+        return None, f"Error rotating PDF: {e}"
+# --- END ROTATE PDF ---
 
 
-# ... Implement similar logging updates for rotate_pdf, add_password, remove_password ...
+# --- PROTECT PDF ---
+# (Paste the working add_password function definition from previous answer here)
+def add_password(pdf_file_stream, password, output_filename_base="protected"):
+    """Adds a user password to encrypt the PDF stream."""
+    ensure_output_dir()
+    if not password:
+        logger.error("Password cannot be empty for protection.")
+        return None, "Error: Password cannot be empty."
 
+    writer = PdfWriter()
+    filename_for_log = getattr(pdf_file_stream, 'filename', 'N/A')
+    try:
+        pdf_file_stream.seek(0) # Ensure stream is at start
+        reader = PdfReader(pdf_file_stream)
+        pdf_file_stream.seek(0) # Reset
+
+        if reader.is_encrypted:
+            logger.warning(f"Input PDF {filename_for_log} is already password protected.")
+            return None, "Error: Input PDF is already password protected."
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        logger.info(f"Encrypting PDF {filename_for_log} with AES-256.")
+        writer.encrypt(user_password=password, algorithm="AES-256") # Requires 'cryptography' package
+
+        output_path = get_output_filename(output_filename_base, "protected", ".pdf")
+        with open(output_path, "wb") as f_out:
+            writer.write(f_out)
+        writer.close()
+        logger.info(f"Successfully protected PDF saved to: {output_path}")
+        return output_path, None
+    except ImportError as imp_err:
+         # Specifically catch if cryptography is missing
+         if 'cryptography' in str(imp_err):
+             logger.error("Cryptography package needed for AES encryption is not installed. Install it via pip.", exc_info=True)
+             return None, "Error: Required 'cryptography' library not found. Cannot protect with AES."
+         else:
+              logger.error(f"Import error during password addition for {filename_for_log}: {imp_err}", exc_info=True)
+              if writer: writer.close()
+              return None, f"Error adding password (import issue): {imp_err}"
+    except Exception as e:
+        logger.error(f"Error adding password to {filename_for_log}: {e}", exc_info=True)
+        if writer: writer.close()
+        return None, f"Error adding password: {e}"
+# --- END PROTECT PDF ---
+
+
+# --- UNLOCK PDF ---
+# (Paste a working remove_password function definition here, ensure logging)
+def remove_password(pdf_file_stream, password, output_filename_base="unlocked"):
+    """Removes the password from a PDF stream, given the correct password."""
+    ensure_output_dir()
+    if not password:
+        return None, "Error: Password needed to unlock."
+
+    writer = PdfWriter()
+    filename_for_log = getattr(pdf_file_stream, 'filename', 'N/A')
+    try:
+        pdf_file_stream.seek(0) # Ensure stream is at start
+        reader = PdfReader(pdf_file_stream)
+        pdf_file_stream.seek(0) # Reset
+
+        if not reader.is_encrypted:
+            logger.warning(f"PDF {filename_for_log} is not password protected.")
+            return None, "Error: PDF is not password protected."
+
+        logger.info(f"Attempting to decrypt {filename_for_log}...")
+        if reader.decrypt(password) == 0: # 0 means decryption failed
+             logger.error(f"Incorrect password provided for {filename_for_log}")
+             return None, "Error: Incorrect password provided."
+        # Decryption successful if it returns 1 or 2
+        logger.info(f"Decryption successful for {filename_for_log}.")
+
+        # Clone the decrypted content
+        writer.clone_document_from_reader(reader)
+
+        output_path = get_output_filename(output_filename_base, "unlocked", ".pdf")
+        with open(output_path, "wb") as f_out:
+            writer.write(f_out)
+        writer.close()
+        logger.info(f"Unlocked PDF saved to: {output_path}")
+        return output_path, None
+
+    except FileNotDecryptedError: # Catch specifically if decrypt fails strongly
+         logger.error(f"Incorrect password provided (FileNotDecryptedError) for {filename_for_log}")
+         return None, "Error: Incorrect password provided."
+    except Exception as e:
+        logger.error(f"Error removing password for {filename_for_log}: {e}", exc_info=True)
+        if writer: writer.close()
+        return None, f"Error removing password: {e}"
+# --- END UNLOCK PDF ---
+
+
+# --- PDF TO IMAGES ---
+# (Paste the pdf_to_images function from previous answer here, ensure logging)
 def pdf_to_images(pdf_file, fmt='jpeg', dpi=200, output_filename_base="page"):
-    """Converts each page of a PDF to an image (JPEG or PNG)."""
+    """Converts each page of a PDF (path or stream) to image files."""
     ensure_output_dir()
     output_paths = []
     fmt = fmt.lower()
     if fmt not in ['jpeg', 'png']:
         return [], "Error: Unsupported image format. Use 'jpeg' or 'png'."
 
-    temp_pdf_path = None
+    temp_pdf_path_obj = None # Use Path object for consistency
+    input_path_str = None # Path as string for pdf2image
     filename_for_log = getattr(pdf_file, 'filename', 'N/A')
-    input_path_obj = None
 
     try:
         # Handle stream input by saving temporarily
         if isinstance(pdf_file, (io.BytesIO, io.BufferedReader)):
-            temp_pdf_path_obj = OUTPUT_DIR / f"temp_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
-            logger.info(f"Input is a stream, saving temporarily to {temp_pdf_path_obj}")
+            temp_pdf_path_obj = OUTPUT_DIR / f"temp_img_conv_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+            logger.info(f"Input is a stream for pdf_to_images, saving temporarily to {temp_pdf_path_obj}")
             with open(temp_pdf_path_obj, 'wb') as f:
-                # Ensure stream is at the beginning
                 pdf_file.seek(0)
-                content = pdf_file.read()
-                f.write(content)
-                pdf_file.seek(0) # Reset stream pointer
-            input_path_obj = temp_pdf_path_obj
-            temp_pdf_path = str(temp_pdf_path_obj) # Keep string path for pdf2image if needed
+                f.write(pdf_file.read())
+                pdf_file.seek(0)
+            input_path_str = str(temp_pdf_path_obj)
+            filename_for_log = Path(filename_for_log).stem # Use stem from original name if possible
         elif isinstance(pdf_file, (str, Path)):
-             input_path_obj = Path(pdf_file)
-             filename_for_log = input_path_obj.name # Use actual filename
+             input_path_str = str(pdf_file)
+             filename_for_log = Path(input_path_str).stem
         else:
-             raise TypeError("Unsupported input type for pdf_file. Must be path or stream.")
+             raise TypeError("Unsupported input type for pdf_file. Must be path string or stream.")
 
-        logger.info(f"Attempting to convert PDF '{filename_for_log}' to {fmt} images (DPI: {dpi}).")
+        logger.info(f"Attempting to convert PDF '{Path(input_path_str).name}' to {fmt} images (DPI: {dpi}).")
         logger.info(f"Using Poppler path: {POPPLER_PATH or 'System PATH'}")
 
         # Check for encryption *before* passing to pdf2image
         try:
-            reader = PdfReader(str(input_path_obj)) # PdfReader needs path string
-            if reader.is_encrypted:
-                try:
-                    if reader.decrypt('') == 0: # Fails with empty password
-                         err_msg = f"Error: Input PDF '{filename_for_log}' is password protected."
-                         logger.error(err_msg)
-                         return [], err_msg
-                except FileNotDecryptedError:
-                     err_msg = f"Error: Input PDF '{filename_for_log}' is password protected."
+            reader_check = PdfReader(input_path_str)
+            if reader_check.is_encrypted:
+                if reader_check.decrypt('') == 0:
+                     err_msg = f"Error: Input PDF '{Path(input_path_str).name}' is password protected."
                      logger.error(err_msg)
+                     # Cleanup temp file before returning
+                     if temp_pdf_path_obj and temp_pdf_path_obj.exists(): os.remove(temp_pdf_path_obj)
                      return [], err_msg
         except Exception as pdf_err:
-            logger.error(f"Error checking PDF encryption for '{filename_for_log}': {pdf_err}")
+            logger.error(f"Error checking PDF encryption for '{Path(input_path_str).name}': {pdf_err}")
+            if temp_pdf_path_obj and temp_pdf_path_obj.exists(): os.remove(temp_pdf_path_obj)
             return [], f"Error reading input PDF: {pdf_err}"
 
-        # Use the path string for convert_from_path
+        # Convert using pdf2image
         images = convert_from_path(
-            str(input_path_obj), # Needs path string
+            input_path_str,
             dpi=dpi,
             fmt=fmt,
             poppler_path=POPPLER_PATH,
-            thread_count=2 # Limit threads slightly
+            thread_count=2
         )
 
         if not images:
-            # This often happens if Poppler isn't found or fails silently
-            logger.error("pdf2image returned no images. Check Poppler installation and PATH variable.")
+            logger.error("pdf2image returned no images. Check Poppler installation and PATH.")
+            if temp_pdf_path_obj and temp_pdf_path_obj.exists(): os.remove(temp_pdf_path_obj)
             return [], "Error converting PDF to images. Check Poppler installation/PATH."
 
         logger.info(f"Successfully generated {len(images)} image objects from PDF.")
+        ext = ".jpg" if fmt == 'jpeg' else ".png"
 
         for i, image in enumerate(images):
-            ext = ".jpg" if fmt == 'jpeg' else ".png"
-            # Pass the base name from the original file for consistency
-            output_path = get_output_filename(Path(filename_for_log).stem, f"page_{i+1}", ext)
+            output_path = get_output_filename(filename_for_log, f"page_{i+1}", ext)
             try:
-                 image.save(output_path, fmt.upper())
+                 # Handle potential transparency for PNGs before saving JPEG
+                 if fmt == 'jpeg' and image.mode in ('RGBA', 'LA', 'P'):
+                      logger.debug(f"Converting image {i+1} to RGB before saving as JPEG.")
+                      # Create a white background image
+                      bg = Image.new("RGB", image.size, (255, 255, 255))
+                      # Paste the image onto the background using its alpha channel or P mode palette
+                      bg.paste(image, (0,0), image if image.mode == 'RGBA' or image.mode == 'LA' else None)
+                      image_to_save = bg
+                 else:
+                      image_to_save = image
+
+                 image_to_save.save(output_path, fmt.upper())
                  output_paths.append(output_path)
-                 logger.debug(f"Saved image: {output_path}")
+                 # logger.debug(f"Saved image: {output_path}") # Verbose
             except Exception as save_err:
                 logger.error(f"Failed to save image {i+1} to {output_path}: {save_err}", exc_info=True)
-                # Decide whether to continue or fail all
-                return [], f"Error saving generated image: {save_err}" # Fail all for now
+                # Cleanup created images and temp file
+                for p in output_paths: os.remove(p)
+                if temp_pdf_path_obj and temp_pdf_path_obj.exists(): os.remove(temp_pdf_path_obj)
+                return [], f"Error saving generated image: {save_err}"
 
         logger.info(f"Successfully saved {len(output_paths)} images.")
         return output_paths, None
 
     except Exception as e:
         logger.error(f"Error converting PDF '{filename_for_log}' to images: {e}", exc_info=True)
-        import traceback
-        # Check if it's a pdf2image specific error
         if "pdfinfo" in str(e) or "pdftoppm" in str(e) or "Poppler" in str(e):
-             return [], f"Error during conversion, likely Poppler related. Is Poppler installed and in PATH? Details: {e}"
-        return [], f"Unexpected error converting PDF to images: {e}"
+             err_msg = f"Error during conversion, likely Poppler related. Is Poppler installed and in PATH? Details: {e}"
+        else:
+             err_msg = f"Unexpected error converting PDF to images: {e}"
+        # Cleanup temp file if it exists
+        if temp_pdf_path_obj and temp_pdf_path_obj.exists(): os.remove(temp_pdf_path_obj)
+        return [], err_msg
     finally:
-        # Clean up temporary file if created
+        # Final cleanup check for temp file
         if temp_pdf_path_obj and temp_pdf_path_obj.exists():
             try:
                 os.remove(temp_pdf_path_obj)
                 logger.info(f"Removed temporary file: {temp_pdf_path_obj}")
             except OSError as e_rem:
                 logger.warning(f"Could not remove temporary file {temp_pdf_path_obj}: {e_rem}")
+# --- END PDF TO IMAGES ---
 
-# ... Implement similar logging updates for images_to_pdf, office_to_pdf ...
-# Ensure office_to_pdf uses logger and handles soffice path robustly.
 
-# Example adjustment for office_to_pdf logging and soffice detection:
+# --- IMAGE TO PDF ---
+# (Paste a working images_to_pdf function definition here, ensure logging)
+def images_to_pdf(image_files, output_filename_base="from_images"):
+    """Converts multiple image file streams into a single PDF."""
+    ensure_output_dir()
+    pil_images = []
+    processed_files_info = [] # Store filenames for logging
+
+    try:
+        for img_stream in image_files:
+            filename = getattr(img_stream, 'filename', 'N/A')
+            try:
+                img_stream.seek(0) # Reset stream
+                img = Image.open(img_stream)
+                # Convert common non-RGB modes to RGB for broader PDF compatibility
+                if img.mode == 'RGBA' or img.mode == 'P' or img.mode == 'LA':
+                    logger.debug(f"Converting image '{filename}' from {img.mode} to RGB.")
+                    # Create a white background and paste image with alpha mask if applicable
+                    if img.mode == 'RGBA' or img.mode == 'LA':
+                         alpha = img.split()[-1]
+                         bg = Image.new("RGB", img.size, (255, 255, 255))
+                         bg.paste(img, mask=alpha)
+                         img_converted = bg
+                    else: # Palette mode, P
+                         img_converted = img.convert('RGB')
+                    pil_images.append(img_converted)
+                elif img.mode == 'RGB':
+                    pil_images.append(img) # Already RGB
+                else:
+                     # Attempt conversion for other modes like L (grayscale), CMYK etc.
+                     logger.debug(f"Attempting to convert image '{filename}' from {img.mode} to RGB.")
+                     img_converted = img.convert('RGB')
+                     pil_images.append(img_converted)
+
+                processed_files_info.append(filename)
+            except Exception as e:
+                logger.warning(f"Skipping file {filename} due to error opening or converting image: {e}")
+                continue # Skip this image
+
+        if not pil_images:
+            return None, "Error: No valid images found or processed."
+
+        output_path = get_output_filename(output_filename_base, "converted", ".pdf")
+        logger.info(f"Converting {len(pil_images)} images ({', '.join(processed_files_info)}) to PDF: {output_path}")
+
+        # Save the first image, then append the rest
+        pil_images[0].save(
+            output_path,
+            "PDF",
+            resolution=100.0,
+            save_all=True,
+            append_images=pil_images[1:]
+        )
+
+        return output_path, None
+    except Exception as e:
+        logger.error(f"Error converting images to PDF: {e}", exc_info=True)
+        return None, f"Error converting images to PDF: {e}"
+    finally:
+        # Close images (optional but good practice)
+        for img in pil_images:
+            try:
+                img.close()
+            except Exception:
+                pass
+# --- END IMAGE TO PDF ---
+
+
+# --- OFFICE TO PDF ---
+# (Paste the office_to_pdf function from previous answer here, ensure logging/path handling)
 def office_to_pdf(office_file_path, output_filename_base="converted"):
     """Converts an Office document (Word, Excel, PPT) to PDF using LibreOffice."""
     ensure_output_dir()
@@ -299,37 +558,29 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
     input_file_path = Path(office_file_path).resolve() # Ensure input is absolute path too
     input_filename = input_file_path.name
 
-    logger.info(f"Attempting to convert Office file '{input_filename}' to PDF.")
+    logger.info(f"Attempting to convert Office file '{input_filename}' to PDF using LibreOffice.")
 
     # --- Find soffice ---
     soffice_command = os.environ.get('SOFFICE_PATH') # Prioritize environment variable
-    if soffice_command and Path(soffice_command).exists():
+    if soffice_command and Path(soffice_command).is_file(): # Check if it's a file
          logger.info(f"Using soffice path from SOFFICE_PATH env var: {soffice_command}")
     else:
-        possible_paths = [
-            "soffice", # If in PATH
-            "libreoffice", # Sometimes just 'libreoffice' is in PATH
-            "/usr/bin/soffice", # Linux common path
-            "/usr/bin/libreoffice", # Another Linux common path
-            "/Applications/LibreOffice.app/Contents/MacOS/soffice", # macOS common path
-            "C:/Program Files/LibreOffice/program/soffice.exe", # Windows common path
-            "C:/Program Files (x86)/LibreOffice/program/soffice.exe" # Windows (x86) common path
-        ]
+        # Search in common locations within the container/system
+        possible_paths = ["soffice", "libreoffice", "/usr/bin/soffice", "/usr/bin/libreoffice"]
         found = False
         for cmd_path in possible_paths:
             try:
-                # Use --version check which usually exits quickly and confirms executable
                 logger.debug(f"Checking for soffice at: {cmd_path}")
                 result = subprocess.run([cmd_path, '--version'], check=True, capture_output=True, text=True, timeout=10)
-                logger.info(f"Found working LibreOffice command: {cmd_path}. Version info: {result.stdout.strip()}")
+                logger.info(f"Found working LibreOffice command: {cmd_path}. Version: {result.stdout.strip()}")
                 soffice_command = cmd_path
                 found = True
                 break
             except (subprocess.CalledProcessError, FileNotFoundError, PermissionError, subprocess.TimeoutExpired) as check_err:
                 logger.debug(f"Checking '{cmd_path}' failed: {check_err}")
-                continue # Try next path
+                continue
         if not found:
-             msg = "Error: LibreOffice 'soffice' command not found or not executable. Install LibreOffice or set SOFFICE_PATH environment variable."
+             msg = "Error: LibreOffice 'soffice' command not found or not executable in expected paths. Install LibreOffice or set SOFFICE_PATH."
              logger.error(msg)
              return None, msg
     # --- End Find soffice ---
@@ -337,18 +588,16 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
     try:
         cmd = [
             soffice_command,
-            '--headless',          # Run without UI
-            '--convert-to', 'pdf', # Specify output format
-            '--outdir', str(output_dir_abs), # Specify output directory
-            str(input_file_path)    # The input file path
+            '--headless',
+            '--convert-to', 'pdf',
+            '--outdir', str(output_dir_abs),
+            str(input_file_path)
         ]
         logger.info(f"Running LibreOffice command: {' '.join(cmd)}")
-        # Increased timeout as conversions can be slow
         result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=300) # 5 min timeout
-        logger.info(f"LibreOffice ({soffice_command}) stdout: {result.stdout}")
-        if result.stderr: # Log stderr even on success, might contain warnings
-            logger.warning(f"LibreOffice ({soffice_command}) stderr: {result.stderr}")
-
+        logger.info(f"LibreOffice stdout: {result.stdout or '[No stdout]'}")
+        if result.stderr:
+            logger.warning(f"LibreOffice stderr: {result.stderr}")
 
         # --- Verify output ---
         original_stem = input_file_path.stem
@@ -356,7 +605,6 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
 
         if expected_pdf.exists():
              logger.info(f"LibreOffice successfully created: {expected_pdf}")
-             # Rename it to our standard format
              final_output_path = get_output_filename(output_filename_base or original_stem, "from_office", ".pdf")
              try:
                  expected_pdf.rename(final_output_path)
@@ -364,37 +612,30 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
                  return final_output_path, None
              except OSError as rename_err:
                  logger.error(f"Failed to rename '{expected_pdf}' to '{final_output_path}': {rename_err}")
-                 # Fallback: return the original name if rename fails but file exists
-                 return expected_pdf, None # Return the path with the original name
+                 return expected_pdf, None # Return original path if rename fails
 
         else:
-            logger.error(f"Error: Expected PDF '{expected_pdf}' was not found after LibreOffice command executed.")
-            # Check stderr for specific clues
-            err_detail = result.stderr if result.stderr else "No specific error message in stderr."
-            if "Error:" in err_detail:
-                 return None, f"LibreOffice conversion failed. Check logs. Details: {err_detail[:500]}" # Limit length
+            err_msg = f"Error: Expected PDF '{expected_pdf}' not found after LibreOffice command."
+            logger.error(err_msg)
+            if result.stderr and "Error:" in result.stderr:
+                 err_detail = f" Details: {result.stderr[:500]}"
+                 return None, err_msg + err_detail
             else:
-                 return None, "Error: LibreOffice conversion command ran but the expected output PDF was not created."
-            # --- End Verify output ---
+                 return None, err_msg + " Check LibreOffice compatibility or installation."
 
     except FileNotFoundError:
-         # This happens if soffice_command itself wasn't found despite earlier checks (rare)
-         msg = f"Error: LibreOffice command '{soffice_command}' not found during execution. Ensure it's correctly installed and PATH is set."
+         msg = f"Error: LibreOffice command '{soffice_command}' not found during execution."
          logger.error(msg)
          return None, msg
     except subprocess.CalledProcessError as e:
-        # This means LibreOffice exited with a non-zero status code
-        logger.error(f"LibreOffice conversion failed with exit code {e.returncode}.")
-        logger.error(f"Command: {' '.join(e.cmd)}")
-        logger.error(f"Stderr: {e.stderr}")
-        # Provide a user-friendly error, including parts of stderr if available
-        err_msg = f"Error during LibreOffice conversion (exit code {e.returncode})."
-        if e.stderr:
-             err_msg += f" Details: {e.stderr[:500]}" # Show first 500 chars of error
+        logger.error(f"LibreOffice conversion failed (exit code {e.returncode}). Stderr: {e.stderr}", exc_info=True)
+        err_msg = f"Error during LibreOffice conversion (Code {e.returncode})."
+        if e.stderr: err_msg += f" Details: {e.stderr[:500]}"
         return None, err_msg
     except subprocess.TimeoutExpired:
         logger.error("Error: LibreOffice conversion timed out.")
-        return None, "Error: Office to PDF conversion took too long (> 5 minutes) and timed out."
+        return None, "Error: Office to PDF conversion timed out (> 5 minutes)."
     except Exception as e:
         logger.error(f"Unexpected error during Office to PDF conversion: {e}", exc_info=True)
         return None, f"Unexpected error during Office to PDF conversion: {e}"
+# --- END OFFICE TO PDF ---

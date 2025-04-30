@@ -29,7 +29,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY . .
 
-
 RUN mkdir -p output uploads && chown -R www-data:www-data output uploads # Example: change ownership if running as www-data
 
 
@@ -37,7 +36,6 @@ ENV PORT=5001
 ENV FLASK_ENV=production
 
 EXPOSE 5001
-
 
 # gemini calls can be slow so timeout should be givrn appropriately
 CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "3", "--timeout", "120", "app:app"]
