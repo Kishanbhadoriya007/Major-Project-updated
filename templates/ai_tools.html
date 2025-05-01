@@ -1,53 +1,62 @@
 {% extends "base.html" %}
 
 {% block title %}AI PDF Tools - Trinity PDF Suite{% endblock %}
- 
+
 {% block content %}
-<h1>AI PDF Tools</h1>
-<p>Upload a PDF file to summarize its text or translate it using Google Gemini.</p>
+    <!-- Center heading block -->
+    <div style="text-align: center;">
+      <h1>AI PDF Tools</h1>
+    </div>
+    <p style="text-align: center; color: #ccc;">Upload a PDF file to summarize its text or translate it using Google Gemini.</p>
 
-<div class="tool-section">
-    <h2>Summarize PDF</h2>
-    <form action="{{ url_for('summarize_route') }}" method="post" enctype="multipart/form-data">
-        <div>
-            <label for="pdf_file_summarize">Select PDF File:</label>
-            <input type="file" name="pdf_file" id="pdf_file_summarize" accept=".pdf" required>
-        </div>
-        <div class="options-group">
-            <label for="min_summary_length">Min Summary Length (Words):</label>
-            <input type="number" name="min_summary_length" id="min_summary_length" value="50" min="10" style="width: auto; display: inline-block; margin-right: 20px;">
+    <div class="tool-section">
+        <h2>Summarize PDF</h2>
+        <form action="{{ url_for('summarize_route') }}" method="post" enctype="multipart/form-data">
+            <div>
+                <label for="pdf_file_summarize">Select PDF File:</label>
+                <input type="file" name="pdf_file" id="pdf_file_summarize" accept=".pdf" required>
+            </div>
+            <div class="options-group">
+                <!-- Wrap inline elements for better styling control -->
+                <div class="inline-input-group">
+                    <label for="min_summary_length">Min Summary Length (Words):</label>
+                    <!-- Removed inline styles, rely on CSS -->
+                    <input type="number" name="min_summary_length" id="min_summary_length" value="50" min="10" required>
+                </div>
+                 <div class="inline-input-group">
+                    <label for="max_summary_length">Max Summary Length (Words):</label>
+                    <!-- Removed inline styles, rely on CSS -->
+                    <input type="number" name="max_summary_length" id="max_summary_length" value="300" min="20" required>
+                </div>
+            </div>
+            <button type="submit">Summarize PDF</button>
+        </form>
+    </div>
 
-            <label for="max_summary_length" style="display: inline-block; margin-left: 20px;">Max Summary Length (Words):</label>
-            <input type="number" name="max_summary_length" id="max_summary_length" value="300" min="20" style="width: auto; display: inline-block;">
-        </div>
-        <button type="submit">Summarize PDF</button>
-    </form>
-</div>
-
-<div class="tool-section">
-    <h2>Translate PDF (English Source)</h2>
-    <form action="{{ url_for('translate_route') }}" method="post" enctype="multipart/form-data">
-        <div>
-            <label for="pdf_file_translate">Select PDF File:</label>
-            <input type="file" name="pdf_file" id="pdf_file_translate" accept=".pdf" required>
-        </div>
-        <div class="options-group">
-            <label for="target_lang">Translate to Language:</label>
-            <select name="target_lang" id="target_lang" required>
-                <option value="fr">French</option>
-                <option value="es">Spanish</option>
-                <option value="de">German</option>
-                <option value="it">Italian</option>
-                <option value="pt">Portuguese</option>
-                <option value="ru">Russian</option>
-                <option value="ja">Japanese</option>
-                <option value="zh">Chinese</option>
-                <option value="ar">Arabic</option>
-                <!-- Add more languages supported by Gemini and your use case -->
-            </select>
-        </div>
-        <button type="submit">Translate PDF</button>
-    </form>
-</div>
+    <div class="tool-section">
+        <h2>Translate PDF (English Source)</h2>
+        <form action="{{ url_for('translate_route') }}" method="post" enctype="multipart/form-data">
+            <div>
+                <label for="pdf_file_translate">Select PDF File:</label>
+                <input type="file" name="pdf_file" id="pdf_file_translate" accept=".pdf" required>
+            </div>
+            <div class="options-group">
+                <label for="target_lang">Translate to Language:</label>
+                <select name="target_lang" id="target_lang" required>
+                    <option value="fr">French</option>
+                    <option value="es">Spanish</option>
+                    <option value="de">German</option>
+                    <option value="it">Italian</option>
+                    <option value="pt">Portuguese</option>
+                    <option value="ru">Russian</option>
+                    <option value="ja">Japanese</option>
+                    <option value="zh">Chinese</option>
+                    <option value="ar">Arabic</option>
+                    <!-- Add more languages supported by Gemini and your use case -->
+                </select>
+            </div>
+            <button type="submit">Translate PDF</button>
+        </form>
+    </div>
 
 {% endblock %}

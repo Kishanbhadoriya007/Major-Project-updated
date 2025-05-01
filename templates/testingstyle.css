@@ -18,8 +18,8 @@ html, body {
 
 /* --- Custom Cursor --- */
 #cursor{
-    height: 25px;
-    width: 25px;
+    height: 40px;
+    width: 40px;
     background-color: #00BFFF; /* Deep Sky Blue accent */
     border-radius: 50%;
     position: fixed;
@@ -32,10 +32,10 @@ html, body {
 #cursor-blur{
     height: 500px; /* Slightly smaller blur */
     width: 500px;
-    background-color: rgba(0, 191, 255, 0.1); /* Semi-transparent blue blur */
+    background-color: rgba(0, 191, 255, 0.25); /* Semi-transparent blue blur */
     border-radius: 50%;
     position: fixed;
-    filter: blur(80px); /* Increased blur effect */
+    filter: blur(100px); /* Increased blur effect */
     z-index: 9; /* Below cursor, above most content */
     pointer-events: none; /* Allow clicking through */
     transition: transform 0.2s ease-out; /* Smooth movement */
@@ -52,9 +52,9 @@ header#nav { /* Target header specifically */
     align-items: center;
     justify-content: space-between; /* Space out logo and nav links */
     padding: 0 5vw; /* Use viewport width for padding */
-    gap: 40px;
+    gap: 50px;
     background-color: transparent; /* Start transparent */
-    transition: background-color 0.5s ease, height 0.5s ease; /* Smooth transitions */
+    transition: background-color 0.1s ease, height 0.1s ease; /* Smooth transitions */
     z-index: 100; /* Above content, below cursor */
 }
 
@@ -66,7 +66,7 @@ header#nav.scrolled {
 }
 
 header#nav h1 {
-    font-size: 1.8rem; /* Adjust size */
+    font-size: 2.2rem; /* Adjust size */
     font-weight: 700;
     color: #fff;
     margin: 0;
@@ -74,7 +74,7 @@ header#nav h1 {
 
 header#nav nav {
     display: flex;
-    gap: 30px;
+    gap: 25px;
 }
 
 header#nav nav a {
@@ -82,7 +82,7 @@ header#nav nav a {
     text-decoration: none;
     text-transform: uppercase;
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 1.4rem;
     position: relative;
     transition: color 0.3s ease;
 }
@@ -91,8 +91,8 @@ header#nav nav a::after {
     content: '';
     position: absolute;
     width: 0;
-    height: 2px;
-    bottom: -5px;
+    height: 2.5px;
+    bottom: -8px;
     left: 0;
     background-color: #00BFFF; /* Accent color for underline */
     transition: width 0.3s ease;
@@ -109,15 +109,15 @@ header#nav nav a:hover::after {
 /* --- Main Content Container --- */
 .container {
     max-width: 950px;
-    margin: 140px auto 50px auto; /* Top margin accounts for fixed header + space */
-    background: rgba(40, 40, 40, 0.8); /* Darker container background */
-    padding: 35px;
+    margin: 200px 600px 50px 600px; /* Top margin accounts for fixed header + space */
+    background: rgba(40, 40, 40, 0.6); /* Darker container background */
+    padding: 50px;
     border-radius: 10px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 4px 4px #b00e0e8f;
     flex-grow: 1;
     position: relative;
     z-index: 10;
-    border: 1px solid #333; /* Subtle border */
+    border: 2px solid #b00e0e; /* Subtle border */
 }
 
 /* --- Headings --- */

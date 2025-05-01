@@ -3,27 +3,30 @@
 {% block title %}Download File - Trinity PDF Suite{% endblock %}
 
 {% block content %}
-<h1>Download Your Processed File</h1>
+    <!-- Center heading block -->
+    <div style="text-align: center;">
+        <h1>Download Your Processed File</h1>
+    </div>
 
-<p>Your file '<strong>{{ filename }}</strong>' is ready for download.</p>
+    <p style="text-align: center; color: #ddd;">Your file '<strong>{{ filename }}</strong>' is ready for download.</p>
 
-<div style="margin: 30px 0; text-align: center;">
-    <a href="{{ download_url }}" class="download-link" download>
-        Download {{ filename }}
-    </a>
-</div>
+    <div style="margin: 40px 0; text-align: center;">
+        <a href="{{ download_url }}" class="download-link" download>
+            Download {{ filename }}
+        </a>
+    </div>
 
-<p style="text-align: center;">
-    <a href="{{ url_for('index') }}">Go back to Home</a> |
-    <a href="{{ request.referrer or url_for('index') }}">Go back to previous tool</a>
-</p>
+    <p style="text-align: center; color: #bbb;">
+        <!-- Style these links slightly -->
+        <a href="{{ url_for('index') }}" style="color: #ccc; text-decoration:none;">Go back to Home</a> |
+        <a href="{{ request.referrer or url_for('index') }}" style="color: #ccc; text-decoration:none;">Go back to previous tool</a>
+    </p>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-  // Optional: Auto-trigger download after a short delay
-  /*
+  //  Auto-trigger download after delay time
   document.addEventListener('DOMContentLoaded', function() {
     const downloadLink = document.querySelector('.download-link');
     if (downloadLink) {
@@ -37,6 +40,7 @@
         }, 1500); // 1.5 second delay
     }
   });
-  */ 
+
+
 </script>
 {% endblock %}

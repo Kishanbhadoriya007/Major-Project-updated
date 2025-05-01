@@ -18,8 +18,8 @@ html, body {
 
 /* --- Custom Cursor --- */
 #cursor{
-    height: 25px;
-    width: 25px;
+    height: 40px;
+    width: 40px;
     background-color: #00BFFF; /* Deep Sky Blue accent */
     border-radius: 50%;
     position: fixed;
@@ -32,10 +32,10 @@ html, body {
 #cursor-blur{
     height: 500px; /* Slightly smaller blur */
     width: 500px;
-    background-color: rgba(0, 191, 255, 0.1); /* Semi-transparent blue blur */
+    background-color: rgba(0, 191, 255, 0.26); /* Semi-transparent blue blur */
     border-radius: 50%;
     position: fixed;
-    filter: blur(80px); /* Increased blur effect */
+    filter: blur(100px); /* Increased blur effect */
     z-index: 9; /* Below cursor, above most content */
     pointer-events: none; /* Allow clicking through */
     transition: transform 0.2s ease-out; /* Smooth movement */
@@ -54,7 +54,7 @@ header#nav { /* Target header specifically */
     padding: 0 5vw; /* Use viewport width for padding */
     gap: 40px;
     background-color: transparent; /* Start transparent */
-    transition: background-color 0.5s ease, height 0.5s ease; /* Smooth transitions */
+    transition: background-color 0.1s ease, height 0.1s ease; /* Smooth transitions */
     z-index: 100; /* Above content, below cursor */
 }
 
@@ -66,7 +66,7 @@ header#nav.scrolled {
 }
 
 header#nav h1 {
-    font-size: 1.8rem; /* Adjust size */
+    font-size: 2.2rem; /* Adjust size */
     font-weight: 700;
     color: #fff;
     margin: 0;
@@ -82,20 +82,20 @@ header#nav nav a {
     text-decoration: none;
     text-transform: uppercase;
     font-weight: 500;
-    font-size: 0.9rem;
+    font-size: 1.4rem;
     position: relative;
-    transition: color 0.3s ease;
+    transition: color 0.2s ease;
 }
 
 header#nav nav a::after {
     content: '';
     position: absolute;
     width: 0;
-    height: 2px;
-    bottom: -5px;
+    height: 2.5px;
+    bottom: -8px;
     left: 0;
     background-color: #00BFFF; /* Accent color for underline */
-    transition: width 0.3s ease;
+    transition: width 0.1s ease;
 }
 
 header#nav nav a:hover {
@@ -117,7 +117,7 @@ header#nav nav a:hover::after {
     flex-grow: 1;
     position: relative;
     z-index: 10;
-    border: 1px solid #333; /* Subtle border */
+    border: 1px solid #780c0c; /* Subtle border */
 }
 
 /* --- Headings --- */
@@ -332,4 +332,78 @@ footer {
      #cursor, #cursor-blur {
         display: none; /* Hide custom cursor on touch devices */
     }
+}
+
+/* Styles for the Tool Buttons on the Index Page */
+.tool-button-container {
+    display: flex; /* Use flexbox for layout */
+    justify-content: center; /* Center buttons */
+    gap: 30px; /* Space between buttons */
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    margin-top: 40px;
+}
+
+.tool-button {
+    display: inline-block;
+    padding: 20px 40px;
+    text-align: center;
+    color: #ffffff;
+    text-decoration: none;
+    border-radius: 8px; /* Match other elements */
+    font-size: 1.3rem; /* Slightly smaller than h3 */
+    font-weight: 600;
+    border: 2px solid #00BFFF; /* Accent border */
+    background-color: transparent; /* Transparent background */
+    transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
+    min-width: 250px; /* Give buttons a minimum width */
+}
+
+.tool-button small {
+    display: block; /* Make small text appear on new line */
+    font-size: 0.9rem;
+    font-weight: 400;
+    color: #ccc; /* Lighter color for subtext */
+    margin-top: 5px;
+}
+
+.tool-button:hover {
+    background-color: rgba(0, 191, 255, 0.15); /* Light accent background on hover */
+    color: #ffffff;
+    transform: translateY(-3px); /* Lift effect */
+    border-color: #33ddff; /* Brighter border on hover */
+}
+
+/* Specific hover color for AI Tools button */
+.tool-button.ai-tool:hover {
+    background-color: rgba(0, 191, 255, 0.5); /* Slightly stronger blue hover */
+}
+
+/* Specific hover color for Standard Tools button */
+.tool-button.standard-tool:hover {
+    background-color: rgba(40, 167, 69, 0.5); /* Use green accent on hover */
+    border-color: #28a745;
+}
+.tool-button.standard-tool:hover small {
+     color: #ddd; /* Ensure small text remains readable */
+}
+
+
+/* Style adjustments for number inputs if needed */
+.options-group .inline-input-group {
+    display: flex;
+    align-items: center;
+    gap: 15px; /* Space between label and input */
+    margin-bottom: 15px; /* Spacing below group */
+    flex-wrap: wrap; /* Allow wrapping if needed */
+}
+
+.options-group .inline-input-group label {
+    margin-bottom: 0; /* Remove bottom margin from label */
+    flex-shrink: 0; /* Prevent label from shrinking */
+}
+
+.options-group .inline-input-group input[type="number"] {
+    width: 100px; /* Specific width for number inputs */
+    margin-bottom: 0; /* Remove bottom margin */
+    display: inline-block; /* Keep them inline if possible */
 }

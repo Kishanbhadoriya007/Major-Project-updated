@@ -3,115 +3,119 @@
 {% block title %}PDF Manipulation Tools - Trinity PDF Suite{% endblock %}
 
 {% block content %}
-<h1>PDF Manipulation Tools</h1>
-<p>Perform various operations on your PDF files locally.</p>
+    <!-- Center heading block -->
+    <div style="text-align: center;">
+        <h1>PDF Manipulation Tools</h1>
+    </div>
+    <p style="text-align: center; color: #ccc;">Perform various operations on your PDF files locally.</p>
 
-<!-- Merge PDFs -->
-<div class="tool-section">
-    <h3>Merge PDFs</h3>
-    <form action="{{ url_for('merge_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_files_merge">Select PDF Files (2 or more):</label>
-        <input type="file" name="pdf_files" id="pdf_files_merge" accept=".pdf" multiple required>
-        <button type="submit">Merge PDFs</button>
-    </form>
-</div>
+    <!-- Merge PDFs -->
+    <div class="tool-section">
+        <h3>Merge PDFs</h3>
+        <form action="{{ url_for('merge_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_files_merge">Select PDF Files (2 or more):</label>
+            <input type="file" name="pdf_files" id="pdf_files_merge" accept=".pdf" multiple required>
+            <button type="submit">Merge PDFs</button>
+        </form>
+    </div>
 
-<!-- Split PDF -->
-<div class="tool-section">
-    <h3>Split PDF</h3>
-    <form action="{{ url_for('split_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_file_split">Select PDF File:</label>
-        <input type="file" name="pdf_file" id="pdf_file_split" accept=".pdf" required>
-        <label for="ranges">Page Ranges (e.g., 1-3, 5, 8-):</label>
-        <input type="text" name="ranges" id="ranges" placeholder="e.g., 1-3, 5, 8-" required>
-        <button type="submit">Split PDF</button>
-    </form>
-</div>
+    <!-- Split PDF -->
+    <div class="tool-section">
+        <h3>Split PDF</h3>
+        <form action="{{ url_for('split_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_file_split">Select PDF File:</label>
+            <input type="file" name="pdf_file" id="pdf_file_split" accept=".pdf" required>
+            <label for="ranges">Page Ranges (e.g., 1-3, 5, 8-) [Max 10 output files]:</label> <!-- Added limit note -->
+            <input type="text" name="ranges" id="ranges" placeholder="e.g., 1-3, 5, 8-" required>
+            <button type="submit">Split PDF</button>
+        </form>
+    </div>
 
-<!-- Rotate PDF -->
-<div class="tool-section">
-    <h3>Rotate PDF</h3>
-    <form action="{{ url_for('rotate_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_file_rotate">Select PDF File:</label>
-        <input type="file" name="pdf_file" id="pdf_file_rotate" accept=".pdf" required>
-        <label for="angle">Rotation Angle:</label>
-        <select name="angle" id="angle" required>
-            <option value="90">90 degrees clockwise</option>
-            <option value="180">180 degrees</option>
-            <option value="270">270 degrees clockwise (90 counter-clockwise)</option>
-        </select>
-        <button type="submit">Rotate PDF</button>
-    </form>
-</div>
+    <!-- Rotate PDF -->
+    <div class="tool-section">
+        <h3>Rotate PDF</h3>
+        <form action="{{ url_for('rotate_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_file_rotate">Select PDF File:</label>
+            <input type="file" name="pdf_file" id="pdf_file_rotate" accept=".pdf" required>
+            <label for="angle">Rotation Angle:</label>
+            <select name="angle" id="angle" required>
+                <option value="90">90 degrees clockwise</option>
+                <option value="180">180 degrees</option>
+                <option value="270">270 degrees clockwise (90 counter-clockwise)</option>
+            </select>
+            <button type="submit">Rotate PDF</button>
+        </form>
+    </div>
 
-<!-- Protect PDF -->
-<div class="tool-section">
-    <h3>Protect PDF (Add Password)</h3>
-    <form action="{{ url_for('protect_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_file_protect">Select PDF File:</label>
-        <input type="file" name="pdf_file" id="pdf_file_protect" accept=".pdf" required>
-        <label for="password_protect">Enter Password:</label>
-        <input type="password" name="password" id="password_protect" required>
-        <button type="submit">Protect PDF</button>
-    </form>
-</div>
+    <!-- Protect PDF -->
+    <div class="tool-section">
+        <h3>Protect PDF (Add Password)</h3>
+        <form action="{{ url_for('protect_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_file_protect">Select PDF File:</label>
+            <input type="file" name="pdf_file" id="pdf_file_protect" accept=".pdf" required>
+            <label for="password_protect">Enter Password:</label>
+            <input type="password" name="password" id="password_protect" required>
+            <button type="submit">Protect PDF</button>
+        </form>
+    </div>
 
-<!-- Unlock PDF -->
-<div class="tool-section">
-    <h3>Unlock PDF (Remove Password)</h3>
-    <form action="{{ url_for('unlock_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_file_unlock">Select Protected PDF File:</label>
-        <input type="file" name="pdf_file" id="pdf_file_unlock" accept=".pdf" required>
-        <label for="password_unlock">Enter Current Password:</label>
-        <input type="password" name="password" id="password_unlock" required>
-        <button type="submit">Unlock PDF</button>
-    </form>
-</div>
+    <!-- Unlock PDF -->
+    <div class="tool-section">
+        <h3>Unlock PDF (Remove Password)</h3>
+        <form action="{{ url_for('unlock_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_file_unlock">Select Protected PDF File:</label>
+            <input type="file" name="pdf_file" id="pdf_file_unlock" accept=".pdf" required>
+            <label for="password_unlock">Enter Current Password:</label>
+            <input type="password" name="password" id="password_unlock" required>
+            <button type="submit">Unlock PDF</button>
+        </form>
+    </div>
 
-<!-- PDF to Image -->
-<div class="tool-section">
-    <h3>PDF to Image</h3>
-    <form action="{{ url_for('pdf_to_image_route') }}" method="post" enctype="multipart/form-data">
-        <label for="pdf_file_to_image">Select PDF File:</label>
-        <input type="file" name="pdf_file" id="pdf_file_to_image" accept=".pdf" required>
-        <div style="display: flex; gap: 20px; align-items: center;">
-            <div>
-                <label for="format">Image Format:</label>
-                <select name="format" id="format">
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                </select>
+    <!-- PDF to Image -->
+    <div class="tool-section">
+        <h3>PDF to Image</h3>
+        <form action="{{ url_for('pdf_to_image_route') }}" method="post" enctype="multipart/form-data">
+            <label for="pdf_file_to_image">Select PDF File:</label>
+            <input type="file" name="pdf_file" id="pdf_file_to_image" accept=".pdf" required>
+             <!-- Wrap inline elements for better styling control -->
+            <div class="options-group">
+                <div class="inline-input-group">
+                    <label for="format">Image Format:</label>
+                    <select name="format" id="format">
+                        <option value="jpeg">JPEG</option>
+                        <option value="png">PNG</option>
+                    </select>
+                </div>
+                <div class="inline-input-group">
+                    <label for="dpi">Resolution (DPI):</label>
+                    <input type="number" name="dpi" id="dpi" value="200" min="50" max="600">
+                </div>
             </div>
-            <div>
-                <label for="dpi">Resolution (DPI):</label>
-                <input type="number" name="dpi" id="dpi" value="200" min="50" max="600" style="width: 100px;">
-            </div>
-        </div>
-        <p><small>Requires Poppler to be installed on the server.</small></p>
-        <button type="submit">Convert to Images</button>
-    </form>
-</div>
+            <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires Poppler to be installed on the server.</small></p>
+            <button type="submit">Convert to Images</button>
+        </form>
+    </div>
 
-<!-- Image to PDF -->
-<div class="tool-section">
-    <h3>Image(s) to PDF</h3>
-    <form action="{{ url_for('image_to_pdf_route') }}" method="post" enctype="multipart/form-data">
-        <label for="image_files_to_pdf">Select Image Files (JPG, PNG, GIF, etc.):</label>
-        <input type="file" name="image_files" id="image_files_to_pdf" accept="image/*" multiple required>
-        <button type="submit">Convert Images to PDF</button>
-    </form>
-</div>
+    <!-- Image to PDF -->
+    <div class="tool-section">
+        <h3>Image(s) to PDF</h3>
+        <form action="{{ url_for('image_to_pdf_route') }}" method="post" enctype="multipart/form-data">
+            <label for="image_files_to_pdf">Select Image Files (JPG, PNG, GIF, etc.):</label>
+            <input type="file" name="image_files" id="image_files_to_pdf" accept="image/*" multiple required>
+            <button type="submit">Convert Images to PDF</button>
+        </form>
+    </div>
 
-<!-- Office to PDF -->
-<div class="tool-section">
-    <h3>Office Document to PDF</h3>
-    <form action="{{ url_for('office_to_pdf_route') }}" method="post" enctype="multipart/form-data">
-        <label for="office_file_to_pdf">Select Office File (Word, Excel, PowerPoint, etc.):</label>
-        <input type="file" name="office_file" id="office_file_to_pdf" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf" required>
-         <p><small>Requires LibreOffice to be installed on the server.</small></p>
-       <button type="submit">Convert to PDF</button>
-    </form>
-</div>
+    <!-- Office to PDF -->
+    <div class="tool-section">
+        <h3>Office Document to PDF</h3>
+        <form action="{{ url_for('office_to_pdf_route') }}" method="post" enctype="multipart/form-data">
+            <label for="office_file_to_pdf">Select Office File (Word, Excel, PowerPoint, etc.):</label>
+            <input type="file" name="office_file" id="office_file_to_pdf" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf" required>
+             <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires LibreOffice to be installed on the server.</small></p>
+           <button type="submit">Convert to PDF</button>
+        </form>
+    </div>
 
 
-{% endblock %} 
+{% endblock %}
