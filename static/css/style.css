@@ -113,11 +113,11 @@ header#nav nav a:hover::after {
     background: rgba(40, 40, 40, 0.8); /* Darker container background */
     padding: 35px;
     border-radius: 10px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 25px 25px #780c0caf;
     flex-grow: 1;
     position: relative;
     z-index: 10;
-    border: 1px solid #780c0c; /* Subtle border */
+    border: 2px solid #780c0c; /* Subtle border */
 }
 
 /* --- Headings --- */

@@ -91,7 +91,7 @@
                     <input type="number" name="dpi" id="dpi" value="200" min="50" max="600">
                 </div>
             </div>
-            <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires Poppler to be installed on the server.</small></p>
+            <!-- <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires Poppler to be installed on the server.</small></p> -->
             <button type="submit">Convert to Images</button>
         </form>
     </div>
@@ -112,7 +112,7 @@
         <form action="{{ url_for('office_to_pdf_route') }}" method="post" enctype="multipart/form-data">
             <label for="office_file_to_pdf">Select Office File (Word, Excel, PowerPoint, etc.):</label>
             <input type="file" name="office_file" id="office_file_to_pdf" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf" required>
-             <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires LibreOffice to be installed on the server.</small></p>
+             <!-- <p><small style="color: #ccc; display:block; margin-top: -10px; margin-bottom: 15px;">Requires LibreOffice to be installed on the server.</small></p> -->
            <button type="submit">Convert to PDF</button>
         </form>
     </div>
