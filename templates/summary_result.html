@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Summary Result - Trinity PDF Suite{% endblock %}
+
+{% block content %}
+    <div style="text-align: center;">
+        <h1><i class="fa-solid fa-file-alt"></i> Summary Result</h1>
+        <p style="color: #ccc;">Summary generated from '<strong>{{ original_filename }}</strong>'</p>
+    </div>
+
+    <div class="summary-display-container">
+        <h2>Generated Summary:</h2>
+        <pre id="summary-text-content">{{ summary_text }}</pre>
+
+        <div class="summary-actions">
+            <button id="copy-button" onclick="copySummaryText()">
+                <i class="fas fa-copy"></i> Copy Text
+            </button>
+
+            {% if txt_filename %}
+                <a href="{{ url_for('download_file', filename=txt_filename) }}" class="download-button txt" download>
+                    <i class="fas fa-file-download"></i> Download .txt
+                </a>
+            {% else %}
+                 <button class="download-button txt disabled" disabled title="TXT file generation failed">
+                    <i class="fas fa-file-download"></i> Download .txt
+                 </button>
+            {% endif %}
+
+           
+
+
+        </div>
+    </div>
+
+     <p style="text-align: center; margin-top: 30px;">
+        <a href="{{ url_for('ai_tools_page') }}" class="subtle-link"><i class="fas fa-arrow-left"></i> Back to AI Tools</a> |
+        <a href="{{ url_for('index') }}" class="subtle-link"><i class="fas fa-home"></i> Go to Home</a>
+    </p>
+
+{% endblock %}
+
+{% block scripts %}
+{# Keep the existing scripts block with the copySummaryText function #}
+{{ super() }}
+<script>
+function copySummaryText() {
+  const textToCopy = document.getElementById('summary-text-content').innerText;
+  const copyButton = document.getElementById('copy-button');
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(textToCopy).then(function() {
+      console.log('Summary copied to clipboard!');
+      copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      copyButton.disabled = true;
+      setTimeout(() => {
+        copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Text';
+        copyButton.disabled = false;
+      }, 2000);
+    }, function(err) {
+      console.error('Failed to copy text: ', err);
+      alert('Failed to copy text. Please try manually.');
+    });
+  } else {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = textToCopy;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-9999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      console.log('Summary copied using fallback method.');
+      copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
+      copyButton.disabled = true;
+       setTimeout(() => {
+        copyButton.innerHTML = '<i class="fas fa-copy"></i> Copy Text';
+        copyButton.disabled = false;
+      }, 2000);
+    } catch (err) {
+      console.error('Fallback copy failed: ', err);
+      alert('Failed to copy text. Please try manually.');
+    }
+  }
+}
+</script>
+{% endblock %}
+

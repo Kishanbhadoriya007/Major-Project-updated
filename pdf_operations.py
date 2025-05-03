@@ -1,12 +1,13 @@
 # Major-Project/pdf_operations.py
-# (Ensure all necessary imports from previous answers are here:
-# os, warnings, datetime, Path, PdfReader, PdfWriter, PdfReadError,
-# FileNotDecryptedError, Image, convert_from_path, subprocess, io, logging, re, zipfile)
+
 
 import os
 import re
 import io
 import zipfile
+import fitz 
+import os 
+from pathlib import Path 
 import warnings
 import logging
 import subprocess
@@ -16,6 +17,16 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError, FileNotDecryptedError
 from PIL import Image
 from pdf2image import convert_from_path
+from docx import Document
+from docx.shared import Inches
+
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt
+    DOCX_AVAILABLE = True
+except ImportError:
+    logging.warning("python-docx library not found. PDF-to-Word functionality will be disabled.")
+    DOCX_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +52,7 @@ def get_output_filename(base_name, suffix, extension):
 
 # --- Core PDF Operations ---
 
-# (Paste the working merge_pdfs function from previous answers here)
+
 def merge_pdfs(pdf_files, output_filename_base="merged"):
     """Merges multiple PDF file streams into one."""
     ensure_output_dir()
@@ -89,8 +100,7 @@ def merge_pdfs(pdf_files, output_filename_base="merged"):
         return None, f"Error finalizing merged PDF: {e}"
 
 
-# --- SPLIT PDF (Multi-File Version) ---
-# (Paste the parse_page_ranges helper function from previous answer here)
+
 def parse_page_ranges(ranges_str, total_pages):
     """Parses a range string (e.g., '1-3, 5, 8-') into a list of tuples.
        Each tuple contains: (range_string_part, list_of_0_based_indices).
@@ -639,3 +649,250 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
         logger.error(f"Unexpected error during Office to PDF conversion: {e}", exc_info=True)
         return None, f"Unexpected error during Office to PDF conversion: {e}"
 # --- END OFFICE TO PDF ---
+
+
+def compress_pdf(pdf_path_or_stream, output_filename_base="compressed"):
+    """Compresses a PDF file using PyMuPDF optimizations."""
+    ensure_output_dir()
+    doc = None
+    filename_for_log = "input_stream"
+    temp_pdf_path_obj = None
+
+    try:
+        if isinstance(pdf_path_or_stream, (str, Path)):
+             pdf_path = str(pdf_path_or_stream)
+             filename_for_log = Path(pdf_path).name
+             doc = fitz.open(pdf_path)
+        elif isinstance(pdf_path_or_stream, (io.BytesIO, io.BufferedReader)):
+             filename_for_log = getattr(pdf_path_or_stream, 'filename', 'input_stream')
+             # Save stream temporarily as fitz.open might need path for some operations or complex PDFs
+             # (Though stream opening is supported, saving can be more robust for complex saves)
+             temp_dir = OUTPUT_DIR # Save temp in output temporarily (or use uploads)
+             temp_pdf_path_obj = temp_dir / f"temp_compress_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+             logger.info(f"Input is a stream for compression, saving temporarily to {temp_pdf_path_obj}")
+             with open(temp_pdf_path_obj, 'wb') as f:
+                 pdf_path_or_stream.seek(0)
+                 f.write(pdf_path_or_stream.read())
+                 pdf_path_or_stream.seek(0)
+             doc = fitz.open(str(temp_pdf_path_obj))
+             filename_for_log = Path(filename_for_log).stem # Use stem from original name if possible
+        else:
+             raise TypeError("Unsupported input type for compress_pdf. Must be path string or stream.")
+
+        if doc.is_encrypted:
+            logger.error(f"Cannot compress password-protected PDF: {filename_for_log}")
+            if doc: doc.close()
+            if temp_pdf_path_obj: cleanup_temp_file(temp_pdf_path_obj)
+            return None, f"Error: Input PDF '{filename_for_log}' is password protected."
+
+        logger.info(f"Compressing PDF '{filename_for_log}' using PyMuPDF...")
+        output_path = get_output_filename(output_filename_base or Path(filename_for_log).stem, "compressed", ".pdf")
+
+        # PyMuPDF save options for compression:
+        # garbage=4: Remove unused objects, compact cross-references, merge duplicate objects
+        # deflate=True: Re-compress streams using Flate (zlib) - generally good balance
+        # Other options exist (e.g., linear=True, clean=True) - check PyMuPDF docs
+        doc.save(str(output_path), garbage=4, deflate=True)
+        doc.close() # Close the document
+
+        # Optional: Check file size reduction
+        try:
+            original_size = 0
+            if temp_pdf_path_obj:
+                original_size = temp_pdf_path_obj.stat().st_size
+            elif 'pdf_path' in locals():
+                original_size = Path(pdf_path).stat().st_size
+            else: # From stream, approximate from stream buffer
+                pdf_path_or_stream.seek(0, io.SEEK_END)
+                original_size = pdf_path_or_stream.tell()
+                pdf_path_or_stream.seek(0)
+
+            compressed_size = output_path.stat().st_size
+            if original_size > 0:
+                reduction = (1 - compressed_size / original_size) * 100
+                logger.info(f"Compression complete: {output_path}. Size reduced by {reduction:.1f}% (from {original_size} to {compressed_size} bytes).")
+            else:
+                 logger.info(f"Compression complete: {output_path}. Compressed size: {compressed_size} bytes.")
+        except Exception as size_err:
+             logger.warning(f"Could not calculate compression ratio: {size_err}")
+             logger.info(f"Compression complete: {output_path}")
+
+
+        return output_path, None
+
+    except Exception as e:
+        logger.error(f"Error compressing PDF '{filename_for_log}': {e}", exc_info=True)
+        if doc: doc.close()
+        return None, f"Error compressing PDF: {e}"
+    finally:
+         # Ensure temp file (if created) is cleaned up
+         if temp_pdf_path_obj:
+              cleanup_temp_file(temp_pdf_path_obj)
+# --- END COMPRESS PDF ---
+
+
+def pdf_to_word(pdf_path_or_stream, output_filename_base="converted"):
+    """
+    Converts PDF to a Word (.docx) file, extracting text and basic image layout.
+    NOTE: Complex formatting (tables, columns, vector graphics, precise styling) WILL BE LOST.
+    """
+    if not DOCX_AVAILABLE:
+        logger.error("Can't do PDF-to-Word: python-docx isn't installed.")
+        return None, "Error: Required 'python-docx' library not there."
+    
+    ensure_output_dir()
+    doc = None
+    word_doc = Document()
+    filename_for_log = "input_stream"
+    temp_pdf_path_obj = None
+    processed_pages = 0
+
+    # Add basic style (optional)
+    style = word_doc.styles['Normal']
+    font = style.font
+    font.name = 'Calibri' # Or another common font
+    font.size = Pt(11)
+
+    try:
+        # --- Input Handling (Similar to compress_pdf) ---
+        if isinstance(pdf_path_or_stream, (str, Path)):
+            pdf_path = str(pdf_path_or_stream)
+            filename_for_log = Path(pdf_path).name
+            doc = fitz.open(pdf_path)
+        elif isinstance(pdf_path_or_stream, (io.BytesIO, io.BufferedReader)):
+            filename_for_log = getattr(pdf_path_or_stream, 'filename', 'input_stream')
+            temp_dir = OUTPUT_DIR # Save temp in output temporarily
+            temp_pdf_path_obj = temp_dir / f"temp_toword_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+            logger.info(f"Input stream for PDF-to-Word, saving temp: {temp_pdf_path_obj}")
+            with open(temp_pdf_path_obj, 'wb') as f:
+                pdf_path_or_stream.seek(0)
+                f.write(pdf_path_or_stream.read())
+                pdf_path_or_stream.seek(0)
+            doc = fitz.open(str(temp_pdf_path_obj))
+            filename_for_log = Path(filename_for_log).stem
+        else:
+            raise TypeError("Unsupported input type for pdf_to_word. Must be path string or stream.")
+
+        if doc.is_encrypted:
+            logger.error(f"Cannot convert password-protected PDF to Word: {filename_for_log}")
+            if doc: doc.close()
+            if temp_pdf_path_obj: cleanup_temp_file(temp_pdf_path_obj)
+            return None, f"Error: Input PDF '{filename_for_log}' is password protected."
+
+        logger.info(f"Starting basic PDF-to-Word conversion for '{filename_for_log}'...")
+
+        # --- Process Pages ---
+        for page_num in range(doc.page_count):
+            page = doc.load_page(page_num)
+            logger.debug(f"Processing page {page_num + 1} for text and images...")
+
+            # Extract text blocks with coordinate information
+            blocks = page.get_text("dict")["blocks"]
+            img_list = page.get_images(full=True)
+
+            # Rough logic: try to place images near where they appear relative to text
+            # This is VERY basic and won't handle complex layouts well.
+            items = []
+            for b in blocks:
+                if b['type'] == 0: # Text block
+                    for l in b["lines"]:
+                        for s in l["spans"]:
+                             items.append({'type': 'text', 'bbox': s['bbox'], 'text': s['text']})
+
+            for img_index, img_info in enumerate(img_list):
+                xref = img_info[0]
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                img_ext = base_image["ext"]
+                # Get image position (optional, might be complex to use accurately)
+                # Use page.get_image_bbox(img_info) for coordinates
+                img_bbox = page.get_image_bbox(img_info, transform=True) # Get bbox on page
+                items.append({'type': 'image', 'bbox': img_bbox, 'bytes': image_bytes, 'ext': img_ext})
+
+            # Sort items approximately by vertical position (top coordinate)
+            items.sort(key=lambda item: item['bbox'][1])
+
+            # Add items to Word doc
+            for item in items:
+                if item['type'] == 'text':
+                    word_doc.add_paragraph(item['text'])
+                elif item['type'] == 'image':
+                    try:
+                        img_stream = io.BytesIO(item['bytes'])
+                        # Basic width calculation (limit to page width) - adjust as needed
+                        img_width_pixels = item['bbox'][2] - item['bbox'][0]
+                        page_width_pt = page.rect.width
+                        # Estimate Word page width (approx 6 inches usable)
+                        word_page_width_inches = 6.0
+                        # Scale image width relative to page width
+                        scale_factor = img_width_pixels / page_width_pt
+                        est_img_width_inches = word_page_width_inches * scale_factor
+                        # Prevent excessively large images
+                        final_img_width_inches = min(est_img_width_inches, word_page_width_inches)
+
+                        word_doc.add_picture(img_stream, width=Inches(final_img_width_inches))
+                        img_stream.close()
+                    except Exception as img_err:
+                        logger.warning(f"Could not add image from page {page_num + 1} to Word doc: {img_err}")
+                        word_doc.add_paragraph(f"[Image Processing Error: {img_err}]")
+
+            # Add a page break (except after the last page)
+            if page_num < doc.page_count - 1:
+                word_doc.add_page_break()
+
+            processed_pages += 1
+
+
+        doc.close() # Close the PDF document
+
+        if processed_pages == 0:
+             return None, "No pages could be processed from the PDF."
+
+        # --- Save Word Document ---
+        output_path = get_output_filename(output_filename_base or Path(filename_for_log).stem, "converted", ".docx")
+        word_doc.save(str(output_path))
+        logger.info(f"Basic PDF-to-Word conversion saved to: {output_path}")
+        return output_path, None
+
+    except ImportError:
+         logger.error("python-docx library not found. Please install it (`pip install python-docx`).")
+         if doc: doc.close()
+         return None, "Error: Required 'python-docx' library not found."
+    except Exception as e:
+        logger.error(f"Error converting PDF '{filename_for_log}' to Word: {e}", exc_info=True)
+        if doc: doc.close()
+        return None, f"Error converting PDF to Word: {e}"
+    finally:
+        if temp_pdf_path_obj:
+             cleanup_temp_file(temp_pdf_path_obj)
+
+# --- END PDF TO WORD ---
+
+
+# --- PLACEHOLDERS for PDF to PPT/Excel ---
+def pdf_to_powerpoint(pdf_path_or_stream, output_filename_base="converted"):
+    """Placeholder function for PDF to PowerPoint."""
+    logger.warning("PDF to PowerPoint conversion is highly complex and not implemented.")
+    # Basic implementation would involve extracting images/text per page (like pdf_to_word)
+    # and adding them to slides using python-pptx. Formatting loss would be significant.
+    return None, "Error: PDF to PowerPoint conversion is not supported due to its complexity and likely poor formatting results."
+
+def pdf_to_excel(pdf_path_or_stream, output_filename_base="converted"):
+    """Placeholder function for PDF to Excel."""
+    logger.warning("PDF to Excel conversion (especially tables) is highly complex and not implemented.")
+    # Requires sophisticated table detection (e.g., libraries like camelot-py, tabula-py, or complex image processing/OCR)
+    # and then writing data using openpyxl or similar.
+    return None, "Error: PDF to Excel conversion (especially tables) is not supported due to its complexity. Consider dedicated table extraction tools."
+# --- END PLACEHOLDERS ---
+
+# --- Utility Function (Ensure exists or add if missing from your version) ---
+def cleanup_temp_file(filepath):
+    """Removes a temporary file if it exists."""
+    if filepath and Path(filepath).exists() and Path(filepath).is_file(): # Check it's a file
+        try:
+            os.remove(filepath)
+            logger.info(f"Removed temporary file: {filepath}")
+        except OSError as e:
+            logger.warning(f"Could not remove temporary file {filepath}: {e}")
+    elif filepath:
+         logger.debug(f"Cleanup requested but file not found or not a file: {filepath}")
