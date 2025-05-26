@@ -5,6 +5,9 @@ import json
 import zipfile
 import logging
 import re
+import pdf_utils 
+import pdf_operations
+import gemini_processors
 from datetime import datetime
 from pathlib import Path
 from flask import (Flask, render_template, request, redirect, url_for,
@@ -12,13 +15,10 @@ from flask import (Flask, render_template, request, redirect, url_for,
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
-# Import local modules
-import pdf_utils # Contains hybrid extract_text
-import pdf_operations
-import gemini_processors
+
 
 MB = 1024 * 1024
-# --- Define File Size Limits ---
+
 LIMIT_CORE_PDF = 50 * MB      # Merge, Split, Rotate, Protect, Unlock
 LIMIT_AI = 20 * MB            # Summarize, Translate (based on input PDF size)
 LIMIT_PDF_TO_IMAGE = 20 * MB  # Input PDF size for image conversion
@@ -27,9 +27,7 @@ LIMIT_OFFICE_TO_PDF = 15 * MB # Input Office file size (Increased slightly)
 LIMIT_COMPRESS_PDF = 60 * MB  # Input PDF size for compression (Allow larger inputs)
 LIMIT_PDF_TO_OFFICE = 25 * MB # Input PDF size for PDF->Office (Word/PPT/Excel)
 
-# --- Configuration ---
-# (Keep existing Flask app setup, logging, context processor, BASE_DIR, folder configs, Gemini config, folder creation)
-# ... existing setup ...
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -57,9 +55,7 @@ except (ValueError, ConnectionError) as e:
 
 pdf_operations.ensure_output_dir()
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-# --- Helper Functions ---
-# (Keep allowed_file, handle_file_upload, save_temp_file, cleanup_temp_file, process_and_get_download)
-# ... existing helpers ...
+
 def allowed_file(filename, allowed_extensions):
     """Checks if the filename has an allowed extension."""
     return '.' in filename and \
@@ -123,8 +119,7 @@ def handle_file_upload(request_files_key, allowed_extensions, multi=False):
          flash('No valid files were uploaded.', 'error') # Should have been caught earlier but safety check
          return None, None, 'No valid files uploaded.'
 
-    # If errors occurred but some files were valid (in multi mode), proceed with valid ones
-    # The calling route might want to flash a warning about skipped files.
+
 
     # Return total size along with streams/filenames
     if multi:
@@ -143,7 +138,7 @@ def save_temp_file(stream, filename):
     """Saves a stream temporarily to the UPLOAD_FOLDER for tools needing a file path."""
     temp_dir = Path(app.config['UPLOAD_FOLDER'])
     # temp_dir.mkdir(parents=True, exist_ok=True) # Already done at startup
-    # Generate a more unique temp name
+   
     temp_filename = secure_filename(f"{Path(filename).stem}_{datetime.now().strftime('%Y%m%d%H%M%S%f')}{Path(filename).suffix}")
     temp_filepath = temp_dir / temp_filename
     try:
@@ -295,7 +290,6 @@ def summarize_route():
                 # ---- END REMOVE PDF GENERATION BLOCK ----
 
 
-                # --- Render Results Page (if TXT was generated) ---
                 if file_generated: # Render only if the TXT file was generated
                     return render_template('summary_result.html',
                                            summary_text=results,
@@ -699,8 +693,8 @@ def pdf_to_word_route():
 
         success_msg = 'Successfully converted PDF to Word (basic formatting)!'
         # Add a warning about formatting loss
-        if not error_msg:
-            flash('Note: Complex formatting (tables, columns, precise styling) may be lost during PDF to Word conversion.', 'warning')
+        # if not error_msg:
+            # flash('Note: Complex formatting (tables, columns, precise styling) may be lost during PDF to Word conversion.', 'warning')
 
         return process_and_get_download(output_path, error_msg, success_msg, "PDF to Word")
 
