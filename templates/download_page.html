@@ -16,6 +16,44 @@
         </a>
     </div>
 
+{# Display Compression Stats if available in session #}
+    {% if session.compression_stats %} {# Check if session.compression_stats itself exists #}
+        {% set stats = session.compression_stats %} {# Define stats now that we know session.compression_stats exists #}
+        <div class="compression-stats" style="text-align: center; margin: 20px auto; padding:15px; background-color: #2a2a2a; border-radius: 5px; border: 1px solid #444; max-width: 500px;">
+            <h4 style="color: #00BFFF; margin-bottom:10px;">
+                Compression Results for '{{ stats.get('original_filename', 'N/A') }}' 
+                (Level: {{ stats.get('compression_level', 'N/A') }}):
+            </h4>
+            
+            {# Check if original_size and compressed_size are valid for percentage calculation #}
+            {% if stats.get('original_size', 0) > 0 and stats.get('compressed_size', 0) > 0 %}
+                {% set reduction_percent = (1 - stats.compressed_size / stats.original_size) * 100 %}
+                {% set saved_bytes = stats.original_size - stats.compressed_size %}
+                <p style="color: #ccc; margin-bottom: 5px;">
+                    Original Size: {{ (stats.original_size / (1024*1024))|round(2) }} MB 
+                    ({{ stats.original_size }} bytes)
+                </p>
+                <p style="color: #ccc; margin-bottom: 5px;">
+                    Compressed Size: {{ (stats.compressed_size / (1024*1024))|round(2) }} MB 
+                    ({{ stats.compressed_size }} bytes)
+                </p>
+                <p style="color: #28a745; font-weight: bold;">
+                    Reduced by: {{ reduction_percent|round(1) }}% 
+                    (Saved {{ (saved_bytes / (1024*1024))|round(2) }} MB)
+                </p>
+            {% else %}
+                <p style="color: #ccc;">Compression details:</p>
+                <p style="color: #ccc; margin-bottom: 5px;">Original Size: {{ stats.get('original_size', 'N/A') }} bytes</p>
+                <p style="color: #ccc; margin-bottom: 5px;">Compressed Size: {{ stats.get('compressed_size', 'N/A') }} bytes</p>
+                {% if not (stats.get('original_size', 0) > 0 and stats.get('compressed_size', 0) > 0) %}
+                    <p style="color: #aaa;">(Could not calculate full percentage reduction due to missing or zero size values)</p>
+                {% endif %}
+            {% endif %}
+        </div>
+        {# Clear the stats from session after displaying once to prevent showing for unrelated downloads #}
+        {% set _ = session.pop('compression_stats', None) %}
+    {% endif %}
+    
     <p style="text-align: center; color: #bbb;">
         <!-- Style these links slightly -->
         <a href="{{ url_for('index') }}" style="color: #ccc; text-decoration:none;">Go back to Home</a> |

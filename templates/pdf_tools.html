@@ -34,12 +34,19 @@
         </div>
 
         <!-- Compress PDF -->
-        <div class="tool-section">
+    <div class="tool-section">
             <h3><i class="fa-solid fa-compress-arrows-alt"></i> Compress PDF</h3>
             <form action="{{ url_for('compress_route') }}" method="post" enctype="multipart/form-data">
                 <label for="pdf_file_compress">Select PDF:</label>
                 <input type="file" name="pdf_file" id="pdf_file_compress" accept=".pdf" required>
-                <!-- Add compression level options later if needed -->
+                
+                <label for="compression_level">Compression Level:</label>
+                <select name="compression_level" id="compression_level">
+                    <option value="basic">Basic (Fast, Good for text documents)</option>
+                    <option value="good" selected>Good (Recommended, Balances size and quality)</option>
+                    <option value="high">High (Slowest, Maximum compression, may affect image quality)</option>
+                </select>
+                <p class="tool-note">Higher levels may take longer and can reduce image quality more.</p>
                 <button type="submit">Compress</button>
             </form>
         </div>
@@ -118,6 +125,23 @@
             </form>
         </div>
 
+        <!--Text to pdf -->
+        <div class="tool-section">
+            <h3><i class="fa-solid fa-file-alt"></i> Text to PDF</h3>
+            <form action="{{ url_for('text_to_pdf_route') }}" method="post" enctype="multipart/form-data">
+                <label for="text_content_area">Enter or Paste Text:</label>
+                <textarea name="text_content" id="text_content_area" rows="10" placeholder="Type or paste your text here..."></textarea>
+                
+                <p style="text-align: center; margin: 10px 0; font-weight: bold;">OR</p>
+
+                <label for="txt_file_upload">Upload .txt File:</label>
+                <input type="file" name="txt_file" id="txt_file_upload" accept=".txt">
+                
+                <p class="tool-note">Converts plain text into a PDF document. If both text area and file are provided, the text area content will be used.</p>
+                <button type="submit">Convert to PDF</button>
+            </form>
+        </div>
+        
         <!-- Office to PDF -->
         <div class="tool-section">
              <h3><i class="fa-solid fa-file-pdf"></i> Office to PDF</h3>
@@ -160,6 +184,7 @@
                 <button type="submit" disabled>Convert</button>
             </form>
         </div>
+
 
 
     </div> <!-- End Grid Container -->

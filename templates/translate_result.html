@@ -1,20 +1,23 @@
 {% extends "base.html" %}
 
-{% block title %}Summary Result - Trinity PDF Suite{% endblock %}
+{% block title %}Translation Result - Trinity PDF Suite{% endblock %}
 
 {% block content %}
     <div style="text-align: center;">
-        <h1><i class="fa-solid fa-file-alt"></i> Summary Result</h1>
-        <p style="color: #ccc;">Summary generated from '<strong>{{ original_filename }}</strong>'</p>
+        <h1><i class="fa-solid fa-language"></i> Translation Result</h1>
+        <p style="color: #ccc;">Translation of '<strong>{{ original_filename }}</strong>' to <strong>{{ target_language_name }}</strong></p>
     </div>
 
-    <div class="summary-display-container">
-        <h2>Generated Summary:</h2>
-        <pre id="summary-text-content">{{ summary_text }}</pre>
+    <div class="summary-display-container"> {# Re-using summary styles for consistency #}
+        <h2>Generated Translation:</h2>
+        <pre id="translation-text-content">{{ translation_text }}</pre>
 
         <div class="summary-actions">
-            <button id="copy-button" onclick="copySummaryText()">
-          {% if txt_filename %}
+            <button id="copy-button" onclick="copyTranslationText()">
+                <i class="fas fa-copy"></i> Copy Text
+            </button>
+
+            {% if txt_filename %}
                 <a href="{{ url_for('download_file', filename=txt_filename) }}" class="download-button txt" download>
                     <i class="fas fa-file-download"></i> Download .txt
                 </a>
@@ -24,7 +27,6 @@
                  </button>
             {% endif %}
 
-            {# ADD THIS BLOCK FOR PDF DOWNLOAD #}
             {% if pdf_filename %}
                 <a href="{{ url_for('download_file', filename=pdf_filename) }}" class="download-button" download> {# Generic download button style #}
                     <i class="fas fa-file-pdf"></i> Download .pdf
@@ -33,7 +35,7 @@
                  <button class="download-button disabled" disabled title="PDF file generation failed">
                     <i class="fas fa-file-pdf"></i> Download .pdf
                  </button>
-                 {% endif %}
+            {% endif %}
         </div>
     </div>
 
@@ -45,16 +47,15 @@
 {% endblock %}
 
 {% block scripts %}
-{# Keep the existing scripts block with the copySummaryText function #}
 {{ super() }}
 <script>
-function copySummaryText() {
-  const textToCopy = document.getElementById('summary-text-content').innerText;
+function copyTranslationText() {
+  const textToCopy = document.getElementById('translation-text-content').innerText;
   const copyButton = document.getElementById('copy-button');
 
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(textToCopy).then(function() {
-      console.log('Summary copied to clipboard!');
+      console.log('Translation copied to clipboard!');
       copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
       copyButton.disabled = true;
       setTimeout(() => {
@@ -66,17 +67,18 @@ function copySummaryText() {
       alert('Failed to copy text. Please try manually.');
     });
   } else {
+    // Fallback for browsers that don't support navigator.clipboard
     try {
       const textArea = document.createElement("textarea");
       textArea.value = textToCopy;
-      textArea.style.position = "fixed";
+      textArea.style.position = "fixed"; // Prevent scrolling to bottom
       textArea.style.left = "-9999px";
       document.body.appendChild(textArea);
       textArea.focus();
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      console.log('Summary copied using fallback method.');
+      console.log('Translation copied using fallback method.');
       copyButton.innerHTML = '<i class="fas fa-check"></i> Copied!';
       copyButton.disabled = true;
        setTimeout(() => {
@@ -91,4 +93,3 @@ function copySummaryText() {
 }
 </script>
 {% endblock %}
-

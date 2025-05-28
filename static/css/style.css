@@ -494,6 +494,7 @@
     margin-bottom: 0; 
     padding: 20px; 
     border: 1px solid #444;
+    color: #111;
     border-radius: 8px;
     background-color: #2a2a2a;
     box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
@@ -508,6 +509,12 @@
     .tool-section form button {
     margin-top: auto; 
     }
+    textarea {
+    background-color: #ffffff; 
+    color: #000000;           
+    border: 1px solid #cccccc;   
+    padding: 5px;              
+}
     
     .tool-section.disabled {
     opacity: 0.6;
@@ -615,20 +622,22 @@
     color: #eee;
     }
     
-    #summary-text-content {
+#summary-text-content,
+#translation-text-content {
     background-color: #333;
     color: #eee;
     padding: 15px;
     border: 1px solid #555;
     border-radius: 6px;
-    max-height: 400px; 
-    overflow-y: auto;
-    white-space: pre-wrap; 
-    word-wrap: break-word; 
+    max-height: 400px; /* Both boxes will scroll if content exceeds 400px height */
+    overflow-y: auto;   /* This enables the scrollbar */
+    white-space: pre-wrap; /* Wraps text to next line, preserves whitespace */
+    word-wrap: break-word; /* Breaks long words if necessary */
     font-family: 'Courier New', Courier, monospace; 
     font-size: 0.95rem;
     line-height: 1.5;
-    }
+    min-height: 100px; /* Optional: give it a minimum height so it doesn't look too small with little text */
+}
     
     .summary-actions {
     margin-top: 25px;

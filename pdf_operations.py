@@ -6,6 +6,7 @@ import re
 import io
 import zipfile
 import fitz 
+from fitz.utils import getColor
 import os 
 from pathlib import Path 
 import warnings
@@ -651,83 +652,80 @@ def office_to_pdf(office_file_path, output_filename_base="converted"):
 # --- END OFFICE TO PDF ---
 
 
-def compress_pdf(pdf_path_or_stream, output_filename_base="compressed"):
+def compress_pdf(pdf_path_or_stream, output_filename_base="compressed", **kwargs): # Add **kwargs
     """Compresses a PDF file using PyMuPDF optimizations."""
     ensure_output_dir()
     doc = None
     filename_for_log = "input_stream"
     temp_pdf_path_obj = None
+    original_size = 0
+    compressed_size = 0
 
     try:
+        # --- Determine original size ---
         if isinstance(pdf_path_or_stream, (str, Path)):
-             pdf_path = str(pdf_path_or_stream)
-             filename_for_log = Path(pdf_path).name
-             doc = fitz.open(pdf_path)
+            pdf_path = str(pdf_path_or_stream)
+            filename_for_log = Path(pdf_path).name
+            original_size = Path(pdf_path).stat().st_size
+            doc = fitz.open(pdf_path)
         elif isinstance(pdf_path_or_stream, (io.BytesIO, io.BufferedReader)):
-             filename_for_log = getattr(pdf_path_or_stream, 'filename', 'input_stream')
-             # Save stream temporarily as fitz.open might need path for some operations or complex PDFs
-             # (Though stream opening is supported, saving can be more robust for complex saves)
-             temp_dir = OUTPUT_DIR # Save temp in output temporarily (or use uploads)
-             temp_pdf_path_obj = temp_dir / f"temp_compress_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
-             logger.info(f"Input is a stream for compression, saving temporarily to {temp_pdf_path_obj}")
-             with open(temp_pdf_path_obj, 'wb') as f:
-                 pdf_path_or_stream.seek(0)
-                 f.write(pdf_path_or_stream.read())
-                 pdf_path_or_stream.seek(0)
-             doc = fitz.open(str(temp_pdf_path_obj))
-             filename_for_log = Path(filename_for_log).stem # Use stem from original name if possible
+            filename_for_log = getattr(pdf_path_or_stream, 'filename', 'input_stream')
+            
+            # Read stream to get its size
+            pdf_path_or_stream.seek(0)
+            stream_content = pdf_path_or_stream.read()
+            original_size = len(stream_content)
+            pdf_path_or_stream.seek(0) # Reset stream
+
+            # Save stream temporarily as fitz.open might need path for some operations or complex PDFs
+            temp_dir = OUTPUT_DIR 
+            temp_pdf_path_obj = temp_dir / f"temp_compress_{datetime.now().strftime('%Y%m%d%H%M%S%f')}.pdf"
+            logger.info(f"Input is a stream for compression, saving temporarily to {temp_pdf_path_obj}")
+            with open(temp_pdf_path_obj, 'wb') as f:
+                f.write(stream_content) # Write the read content
+            doc = fitz.open(str(temp_pdf_path_obj))
+            filename_for_log = Path(filename_for_log).stem 
         else:
-             raise TypeError("Unsupported input type for compress_pdf. Must be path string or stream.")
+            raise TypeError("Unsupported input type for compress_pdf. Must be path string or stream.")
 
         if doc.is_encrypted:
             logger.error(f"Cannot compress password-protected PDF: {filename_for_log}")
             if doc: doc.close()
             if temp_pdf_path_obj: cleanup_temp_file(temp_pdf_path_obj)
-            return None, f"Error: Input PDF '{filename_for_log}' is password protected."
+            # Return None for sizes as well
+            return None, f"Error: Input PDF '{filename_for_log}' is password protected.", None, None 
 
         logger.info(f"Compressing PDF '{filename_for_log}' using PyMuPDF...")
         output_path = get_output_filename(output_filename_base or Path(filename_for_log).stem, "compressed", ".pdf")
 
         # PyMuPDF save options for compression:
-        # garbage=4: Remove unused objects, compact cross-references, merge duplicate objects
-        # deflate=True: Re-compress streams using Flate (zlib) - generally good balance
-        # Other options exist (e.g., linear=True, clean=True) - check PyMuPDF docs
-        doc.save(str(output_path), garbage=4, deflate=True)
-        doc.close() # Close the document
+        # Default options from previous state, will be augmented by kwargs
+        save_params = {'garbage': 4, 'deflate': True}
+        save_params.update(kwargs) # Apply any new options passed
 
-        # Optional: Check file size reduction
-        try:
-            original_size = 0
-            if temp_pdf_path_obj:
-                original_size = temp_pdf_path_obj.stat().st_size
-            elif 'pdf_path' in locals():
-                original_size = Path(pdf_path).stat().st_size
-            else: # From stream, approximate from stream buffer
-                pdf_path_or_stream.seek(0, io.SEEK_END)
-                original_size = pdf_path_or_stream.tell()
-                pdf_path_or_stream.seek(0)
+        doc.save(str(output_path), **save_params) # Use the merged parameters
+        doc.close() 
 
-            compressed_size = output_path.stat().st_size
-            if original_size > 0:
-                reduction = (1 - compressed_size / original_size) * 100
-                logger.info(f"Compression complete: {output_path}. Size reduced by {reduction:.1f}% (from {original_size} to {compressed_size} bytes).")
-            else:
-                 logger.info(f"Compression complete: {output_path}. Compressed size: {compressed_size} bytes.")
-        except Exception as size_err:
-             logger.warning(f"Could not calculate compression ratio: {size_err}")
-             logger.info(f"Compression complete: {output_path}")
-
-
-        return output_path, None
+        compressed_size = output_path.stat().st_size
+        reduction_percent = 0
+        if original_size > 0 and compressed_size > 0: # ensure compressed_size is also positive
+            reduction_percent = (1 - compressed_size / original_size) * 100
+            logger.info(f"Compression complete: {output_path}. Original: {original_size}B, Compressed: {compressed_size}B, Reduction: {reduction_percent:.1f}%")
+        elif original_size > 0 :
+            logger.info(f"Compression complete: {output_path}. Original: {original_size}B, Compressed: {compressed_size}B. Could not calculate reduction percentage.")
+        else:
+            logger.info(f"Compression complete: {output_path}. Compressed size: {compressed_size} bytes. Original size unknown or zero.")
+        
+        # Return output_path, error_msg (None on success), original_size, compressed_size
+        return output_path, None, original_size, compressed_size
 
     except Exception as e:
         logger.error(f"Error compressing PDF '{filename_for_log}': {e}", exc_info=True)
         if doc: doc.close()
-        return None, f"Error compressing PDF: {e}"
+        return None, f"Error compressing PDF: {e}", original_size, 0 # Return original_size and 0 for compressed
     finally:
-         # Ensure temp file (if created) is cleaned up
-         if temp_pdf_path_obj:
-              cleanup_temp_file(temp_pdf_path_obj)
+        if temp_pdf_path_obj:
+            cleanup_temp_file(temp_pdf_path_obj)
 # --- END COMPRESS PDF ---
 
 
@@ -868,6 +866,201 @@ def pdf_to_word(pdf_path_or_stream, output_filename_base="converted"):
 
 # --- END PDF TO WORD ---
 
+# Major-Project/pdf_operations.py
+
+import os
+import fitz  # PyMuPDF
+from fitz.utils import getColor # Import getColor for named colors
+from pathlib import Path
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+OUTPUT_DIR = Path("output") # Ensure this is defined as per your project structure
+
+# --- Helper Functions (ensure these exist or adapt) ---
+def ensure_output_dir():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_output_filename(base_name, suffix, extension):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S%f")
+    safe_base = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in str(base_name))
+    safe_base = safe_base[:100] # Limit base length
+    filename = f"{safe_base}_{suffix}_{timestamp}{extension}"
+    return OUTPUT_DIR / filename
+# --- End Helper Functions ---
+
+
+# Major-Project/pdf_operations.py
+
+import os
+import fitz  # PyMuPDF
+from fitz.utils import getColor
+from pathlib import Path
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+OUTPUT_DIR = Path("output") # Ensure this is defined as per your project structure
+
+# --- Helper Functions (ensure these exist or adapt) ---
+def ensure_output_dir():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_output_filename(base_name, suffix, extension):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S%f")
+    safe_base = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in str(base_name))
+    safe_base = safe_base[:100] # Limit base length
+    filename = f"{safe_base}_{suffix}_{timestamp}{extension}"
+    return OUTPUT_DIR / filename
+# --- End Helper Functions ---
+
+# Major-Project/pdf_operations.py
+
+import os
+import fitz  # PyMuPDF
+from fitz.utils import getColor
+from pathlib import Path
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+OUTPUT_DIR = Path("output") # Ensure this is defined
+
+# --- Helper Functions (ensure these exist or adapt) ---
+def ensure_output_dir():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_output_filename(base_name, suffix, extension):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S%f")
+    safe_base = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in str(base_name))
+    safe_base = safe_base[:100]
+    filename = f"{safe_base}_{suffix}_{timestamp}{extension}"
+    return OUTPUT_DIR / filename
+# --- End Helper Functions ---
+
+# Major-Project/pdf_operations.py
+
+import os
+import fitz  # PyMuPDF
+from fitz.utils import getColor
+from pathlib import Path
+import logging
+from datetime import datetime
+
+logger = logging.getLogger(__name__)
+OUTPUT_DIR = Path("output") # Ensure this is defined as per your project structure
+
+# --- Helper Functions (ensure these exist or adapt) ---
+def ensure_output_dir():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+def get_output_filename(base_name, suffix, extension):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S%f")
+    safe_base = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in str(base_name))
+    safe_base = safe_base[:100] # Limit base length
+    filename = f"{safe_base}_{suffix}_{timestamp}{extension}"
+    return OUTPUT_DIR / filename
+# --- End Helper Functions ---
+
+def text_to_pdf(text_content: str, output_filename_base="text_document", font_name="cour", font_size=11):
+    """
+    Generates a PDF from text_content using page.insert_text() line by line.
+    Uses black text on a white background. Includes detailed logging for multi-line processing.
+    """
+    ensure_output_dir()
+    # Using a slightly different name to distinguish this version's output if needed.
+    output_filename_base_test = f"{output_filename_base}_multiline_debug" # Changed suffix for clarity
+    output_path = get_output_filename(output_filename_base_test, "generated", ".pdf")
+    doc = None
+
+    black_color = getColor("black")
+    white_color = getColor("white")
+
+    logger.info(f"text_to_pdf (multiline_debug): Input text_content (first 200 chars): '{text_content[:200]}...'")
+    lines = text_content.split('\n')
+    logger.info(f"text_to_pdf (multiline_debug): Split into {len(lines)} lines.")
+
+    if not lines or (len(lines) == 1 and not lines[0].strip()): # Handle empty or effectively empty content
+        logger.warning("text_to_pdf (multiline_debug): No actual text lines to process.")
+        # Create a blank PDF if no content
+        try:
+            doc_temp = fitz.open()
+            doc_temp.new_page()
+            doc_temp.save(str(output_path))
+            logger.info(f"PDF (multiline_debug) generated as blank (no content): {output_path}")
+            doc_temp.close()
+            return output_path, None # Or you could return an error/message
+        except Exception as e_blank:
+            logger.error(f"text_to_pdf (multiline_debug): Error creating blank PDF: {e_blank}")
+            return None, f"Error creating blank PDF: {e_blank}"
+
+
+    try:
+        doc = fitz.open()
+        page = doc.new_page()
+        page.draw_rect(page.rect, color=white_color, fill=white_color, overlay=False)
+        logger.info(f"text_to_pdf (multiline_debug): Created initial page {page.number + 1} of {doc.page_count}")
+
+        margin = 50  # Points
+        line_height = font_size * 1.2
+        x_coord = margin
+        # Start y_cursor for the baseline of the first line of text
+        y_cursor = margin + font_size
+
+        for line_num, line in enumerate(lines):
+            # Prepare the line for processing
+            processed_line = line.strip() # Remove leading/trailing whitespace
+
+            logger.info(f"text_to_pdf (multiline_debug): --- Processing line {line_num + 1}/{len(lines)} ---")
+            logger.info(f"text_to_pdf (multiline_debug): Page: {page.number + 1}, Current y_cursor: {y_cursor:.2f}")
+            logger.info(f"text_to_pdf (multiline_debug): Line content (stripped): '{processed_line}'")
+
+            # Page break logic: if the current y_cursor is already too far down for this line's baseline
+            if y_cursor > (page.rect.height - margin):
+                logger.info(f"text_to_pdf (multiline_debug): Page break triggered. y_cursor ({y_cursor:.2f}) > page_height ({page.rect.height}) - margin ({margin}).")
+                page = doc.new_page()
+                page.draw_rect(page.rect, color=white_color, fill=white_color, overlay=False)
+                y_cursor = margin + font_size  # Reset y_cursor for the new page
+                logger.info(f"text_to_pdf (multiline_debug): New page {page.number + 1} created. y_cursor reset to {y_cursor:.2f}.")
+
+            text_insertion_point = fitz.Point(x_coord, y_cursor)
+
+            # Only attempt to insert text if the processed line is not empty
+            if processed_line:
+                insert_len = page.insert_text(
+                    text_insertion_point,
+                    processed_line,
+                    fontname=font_name,
+                    fontsize=font_size,
+                    color=black_color
+                )
+                logger.info(f"text_to_pdf (multiline_debug): Inserted '{processed_line[:50]}...' (len: {len(processed_line)}). PyMuPDF wrote {insert_len} chars.")
+                if insert_len < len(processed_line):
+                    logger.warning(f"text_to_pdf (multiline_debug): Line {line_num + 1}: Not all characters inserted.")
+            else:
+                logger.info(f"text_to_pdf (multiline_debug): Line {line_num + 1} is empty after strip, skipping text insertion.")
+            
+            y_cursor += line_height # Move to the next line position for the *next* iteration
+
+        doc.save(str(output_path))
+        logger.info(f"PDF (multiline_debug) generated successfully: {output_path} with {doc.page_count} page(s).")
+        return output_path, None
+    except Exception as e:
+        logger.error(f"Error in text_to_pdf (multiline_debug) for '{output_filename_base}': {e}", exc_info=True)
+        # Attempt to save even if error occurs partway, for debugging
+        if doc and (doc.page_count > 0 or page is not None): # Check if doc or page object exists
+            error_file_name = output_path.stem + "_error.pdf"
+            error_path = output_path.with_name(error_file_name)
+            try:
+                doc.save(str(error_path))
+                logger.info(f"Saved partial PDF to {error_path} after error.")
+            except Exception as save_err:
+                logger.error(f"Could not save partial PDF after error: {save_err}")
+        return None, f"Error creating PDF (multiline_debug): {e}"
+    finally:
+        if doc:
+            doc.close()
 
 # --- PLACEHOLDERS for PDF to PPT/Excel ---
 def pdf_to_powerpoint(pdf_path_or_stream, output_filename_base="converted"):

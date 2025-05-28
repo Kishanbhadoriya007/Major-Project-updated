@@ -219,12 +219,12 @@ def pdf_tools_page():
 
 @app.route('/summarize', methods=['POST'])
 def summarize_route():
-    """Handles PDF summarization, displays results, and offers TXT download.""" # Updated docstring
+    """Handles PDF summarization, displays results, and offers TXT/PDF download."""
     stream = None
     temp_pdf_path = None
     filename = "N/A"
-    txt_output_path = None # Track generated TXT file path ONLY
-    # pdf_output_path = None # REMOVE THIS LINE
+    txt_output_path = None
+    pdf_output_path = None # ADD THIS BACK
 
     try:
         stream, filename, file_size, error = handle_file_upload('pdf_file', {'pdf'})
@@ -242,7 +242,7 @@ def summarize_route():
              return redirect(url_for('ai_tools_page'))
 
         text = ""
-        results = None
+        summary_text = None # Renamed from 'results'
         error_message = None
 
         logger.info(f"Extracting text from '{filename}' for summarization (with OCR fallback).")
@@ -254,67 +254,62 @@ def summarize_route():
              error_message = "Could not extract any text from the PDF (direct or OCR)."
         else:
             logger.info(f"Calling Gemini for brief summarization. Text length: {len(text)}")
-            results = gemini_processors.summarize_text_gemini(text)
+            summary_text = gemini_processors.summarize_text_gemini(text) # Use 'summary_text'
 
-            if results and not results.startswith("Error:"):
-                # --- Generate ONLY the TXT output file ---
+            if summary_text and not summary_text.startswith("Error:"):
                 output_filename_base = Path(filename).stem
-                file_generated = False # Renamed for clarity
-
-                # 1. Generate TXT
+                
+                # 1. Generate TXT file
                 try:
                     txt_output_path = pdf_operations.get_output_filename(output_filename_base, "summary", ".txt")
                     with open(txt_output_path, "w", encoding="utf-8") as f:
-                        f.write(results)
+                        f.write(summary_text)
                     logger.info(f"Summary TXT file saved to: {txt_output_path}")
-                    file_generated = True # Mark TXT file generated
                 except Exception as txt_err:
                     logger.error(f"Failed to save summary TXT file: {txt_err}", exc_info=True)
-                    error_message = "Failed to save summary as .txt file."
+                    error_message = "Failed to save summary as .txt file." # Keep this as an error if it fails
+                    # Don't proceed to render if TXT fails, as it's primary
+                    flash(error_message, 'error')
                     if txt_output_path and txt_output_path.exists(): cleanup_temp_file(txt_output_path)
-                    txt_output_path = None
+                    return redirect(url_for('ai_tools_page'))
 
 
-                # ---- REMOVE PDF GENERATION BLOCK ----
-                # 2. Generate PDF (only if TXT succeeded for simplicity, or handle partial success)
-                # if txt_output_path: # Proceed only if TXT was saved
-                #     pdf_output_path, pdf_error = pdf_operations.text_to_pdf(results, output_filename_base=output_filename_base)
-                #     if pdf_error:
-                #         logger.error(f"Failed to generate PDF from summary: {pdf_error}")
-                #         # REMOVE flash message about PDF failure
-                #         # flash(f"Summary generated and saved as TXT, but failed to create PDF: {pdf_error}", "warning")
-                #         pdf_output_path = None # Ensure path is None
-                #     else:
-                #         logger.info(f"Summary PDF file saved to: {pdf_output_path}")
-                #         file_generated = True # Mark generation success
-                # ---- END REMOVE PDF GENERATION BLOCK ----
+                # 2. Generate PDF file from summary text
+                try:
+                    pdf_output_path, pdf_error = pdf_operations.text_to_pdf(summary_text, output_filename_base=f"{output_filename_base}_summary")
+                    if pdf_error:
+                        logger.error(f"Failed to generate PDF from summary: {pdf_error}")
+                        flash(f"Summary generated and TXT saved, but failed to create PDF: {pdf_error}", "warning")
+                        pdf_output_path = None # Ensure path is None
+                    else:
+                        logger.info(f"Summary PDF file saved to: {pdf_output_path}")
+                except Exception as pdf_gen_err:
+                    logger.error(f"Exception during PDF generation for summary: {pdf_gen_err}", exc_info=True)
+                    flash("Failed to generate PDF from summary.", "warning")
+                    pdf_output_path = None
 
 
-                if file_generated: # Render only if the TXT file was generated
-                    return render_template('summary_result.html',
-                                           summary_text=results,
-                                           original_filename=filename,
-                                           # Pass only the txt filename
-                                           txt_filename=txt_output_path.name if txt_output_path else None
-                                           # REMOVE pdf_filename=pdf_output_path.name if pdf_output_path else None
-                                           )
-                # else: fall through to error handling if TXT file failed
-
-            elif results: # Error message from Gemini
-                 error_message = results
+                # Render Results Page (if TXT was generated, PDF is optional)
+                return render_template('summary_result.html',
+                                       summary_text=summary_text,
+                                       original_filename=filename,
+                                       txt_filename=txt_output_path.name if txt_output_path else None,
+                                       pdf_filename=pdf_output_path.name if pdf_output_path else None # ADD THIS
+                                       )
+            elif summary_text: # Error message from Gemini
+                 error_message = summary_text
             else:
                  error_message = "Summarization returned an empty result."
 
-        # If we reach here, there was an error during extraction, gemini, or TXT file saving
+        # If we reach here, there was an error during extraction or gemini
         flash(error_message or "An unknown error occurred during summarization.", 'error')
         return redirect(url_for('ai_tools_page'))
 
     except Exception as e:
         logger.error(f"Unexpected error in /summarize route for {filename}: {e}", exc_info=True)
         flash("An unexpected server error occurred during summarization.", 'error')
-        # Cleanup potentially generated TXT file
         if txt_output_path and txt_output_path.exists(): cleanup_temp_file(txt_output_path)
-        # REMOVE PDF cleanup: if pdf_output_path and pdf_output_path.exists(): cleanup_temp_file(pdf_output_path)
+        if pdf_output_path and pdf_output_path.exists(): cleanup_temp_file(pdf_output_path) # ADD THIS
         return redirect(url_for('ai_tools_page'))
     finally:
         if stream: stream.close()
@@ -323,12 +318,17 @@ def summarize_route():
 
 
 #Translate route
+# @app.route('/translate', methods=['POST'])
 @app.route('/translate', methods=['POST'])
 def translate_route():
-    """Handles PDF translation requests using Gemini auto-detection."""
+    """Handles PDF translation, displays results, and offers TXT/PDF download."""
     stream = None
     temp_pdf_path = None
     filename = "N/A"
+    txt_output_path = None
+    pdf_output_path = None
+    target_language_name_for_template = "N/A" # For display in template
+
     try:
         stream, filename, file_size, error = handle_file_upload('pdf_file', {'pdf'})
         if error:
@@ -345,29 +345,23 @@ def translate_route():
              return redirect(url_for('ai_tools_page'))
 
         text = ""
-        results = None
+        translated_text = None # Renamed from 'results' for clarity
         error_message = None
-        output_file_path = None
-
+        
         # --- Determine Target Language ---
         target_lang_select = request.form.get('target_lang_select')
         target_lang_custom = request.form.get('target_lang_custom', '').strip()
 
-        target_language_name = None
         if target_lang_custom:
-            target_language_name = target_lang_custom
-            logger.info(f"Using custom target language: {target_language_name}")
+            target_language_name_for_template = target_lang_custom
         elif target_lang_select and target_lang_select != 'other':
-            # Use the value directly from the select dropdown (which should be the language name)
-            target_language_name = target_lang_select
-            logger.info(f"Using selected target language: {target_language_name}")
+            target_language_name_for_template = target_lang_select
         else:
-             # Handle case where 'other' was selected but custom field is empty, or no selection
-             error_message = "Please select a target language or specify a custom language."
+            error_message = "Please select a target language or specify a custom language."
+            # Fall through to flash error and redirect
 
-
-        if not error_message:
-            logger.info(f"Extracting text from '{filename}' for translation to '{target_language_name}' (with OCR fallback).")
+        if not error_message: # Proceed only if target language is set
+            logger.info(f"Extracting text from '{filename}' for translation to '{target_language_name_for_template}' (with OCR fallback).")
             text, extraction_error = pdf_utils.extract_text(str(temp_pdf_path))
 
             if extraction_error:
@@ -375,37 +369,66 @@ def translate_route():
             elif not text:
                  error_message = "Could not extract any text from the PDF (direct or OCR)."
             else:
-                # Call the UPDATED translate function
-                logger.info(f"Calling Gemini for translation to '{target_language_name}'. Text length: {len(text)}")
-                results = gemini_processors.translate_text_gemini(text, target_language_name=target_language_name) # <-- Pass name
+                logger.info(f"Calling Gemini for translation to '{target_language_name_for_template}'. Text length: {len(text)}")
+                translated_text = gemini_processors.translate_text_gemini(text, target_language_name=target_language_name_for_template)
 
-                if results and not results.startswith("Error:"):
+                if translated_text and not translated_text.startswith("Error:"):
                     output_filename_base = Path(filename).stem
-                    # Sanitize language name for filename
-                    safe_lang_name = "".join(c if c.isalnum() else '_' for c in target_language_name).lower()
-                    output_file_path = pdf_operations.get_output_filename(output_filename_base, f"translation_{safe_lang_name}", ".txt")
-                    with open(output_file_path, "w", encoding="utf-8") as f:
-                        f.write(results)
-                    logger.info(f"Translation saved to: {output_file_path}")
-                    success_msg = f"Successfully translated '{filename}' to {target_language_name}!"
-                    return process_and_get_download(output_file_path, None, success_msg, "Translation")
-                elif results: # Error message from Gemini or extraction
-                    error_message = results
-                else:
-                    error_message = "Translation returned an empty result."
+                    safe_lang_name = "".join(c if c.isalnum() else '_' for c in target_language_name_for_template).lower()
+                    
+                    # 1. Generate TXT file
+                    try:
+                        txt_output_path = pdf_operations.get_output_filename(output_filename_base, f"translation_{safe_lang_name}", ".txt")
+                        with open(txt_output_path, "w", encoding="utf-8") as f:
+                            f.write(translated_text)
+                        logger.info(f"Translation TXT file saved to: {txt_output_path}")
+                    except Exception as txt_err:
+                        logger.error(f"Failed to save translation TXT file: {txt_err}", exc_info=True)
+                        flash("Failed to save translation as .txt file.", "warning") # Non-critical, try PDF
+                        if txt_output_path and txt_output_path.exists(): cleanup_temp_file(txt_output_path)
+                        txt_output_path = None
 
-        # If we reach here, there was an error
+                    # 2. Generate PDF file from translated text
+                    try:
+                        pdf_output_path, pdf_error = pdf_operations.text_to_pdf(translated_text, output_filename_base=f"{output_filename_base}_translation_{safe_lang_name}")
+                        if pdf_error:
+                            logger.error(f"Failed to generate PDF from translation: {pdf_error}")
+                            flash(f"Translation generated, but failed to create PDF: {pdf_error}", "warning")
+                            pdf_output_path = None # Ensure path is None if error
+                        else:
+                            logger.info(f"Translation PDF file saved to: {pdf_output_path}")
+                    except Exception as pdf_gen_err:
+                        logger.error(f"Exception during PDF generation for translation: {pdf_gen_err}", exc_info=True)
+                        flash("Failed to generate PDF from translation.", "warning")
+                        pdf_output_path = None
+                        
+                    # Render the new results page
+                    return render_template('translate_result.html',
+                                           translation_text=translated_text,
+                                           original_filename=filename,
+                                           target_language_name=target_language_name_for_template,
+                                           txt_filename=txt_output_path.name if txt_output_path else None,
+                                           pdf_filename=pdf_output_path.name if pdf_output_path else None
+                                           )
+                elif translated_text: # Error message from Gemini
+                     error_message = translated_text # This already starts with "Error:"
+                else:
+                     error_message = "Translation returned an empty result."
+
+        # If we reach here, there was an error during setup, extraction, gemini, or file saving
         flash(error_message or "An unknown error occurred during translation.", 'error')
         return redirect(url_for('ai_tools_page'))
 
     except Exception as e:
         logger.error(f"Unexpected error in /translate route for {filename}: {e}", exc_info=True)
         flash("An unexpected server error occurred during translation.", 'error')
+        # Cleanup potentially generated files
+        if txt_output_path and txt_output_path.exists(): cleanup_temp_file(txt_output_path)
+        if pdf_output_path and pdf_output_path.exists(): cleanup_temp_file(pdf_output_path)
         return redirect(url_for('ai_tools_page'))
     finally:
         if stream: stream.close()
         cleanup_temp_file(temp_pdf_path)
-
 # --- Standard PDF Tool Processing Routes ---
 
 @app.route('/merge', methods=['POST'])
@@ -631,7 +654,6 @@ def unlock_route():
 @app.route('/compress', methods=['POST'])
 def compress_route():
     stream = None
-    temp_pdf_path = None
     filename = "N/A"
     try:
         stream, filename, file_size, error = handle_file_upload('pdf_file', {'pdf'})
@@ -643,18 +665,38 @@ def compress_route():
             if stream: stream.close()
             return redirect(url_for('pdf_tools_page'))
 
-        # Compression function might need a path, use temp file
-        temp_pdf_path = save_temp_file(stream, filename)
-        if not temp_pdf_path:
-             flash("Failed to save uploaded file for processing.", "error")
-             return redirect(url_for('pdf_tools_page'))
-
         base_name = Path(filename).stem
-        logger.info(f"Processing compression request for file: {filename}")
-        # Pass the temp path to the compression function
-        output_path, error_msg = pdf_operations.compress_pdf(str(temp_pdf_path), output_filename_base=base_name)
+        
+        # Get compression level from form
+        level = request.form.get('compression_level', 'good') # Default to 'good'
+        
+        compression_args = {}
+        if level == 'basic':
+            compression_args = {'garbage': 3, 'deflate': True, 'clean': False, 'deflate_images': False, 'deflate_fonts': False}
+            logger.info(f"Processing BASIC compression for file: {filename}")
+        elif level == 'high':
+            compression_args = {'garbage': 4, 'deflate': True, 'clean': True, 'deflate_images': True, 'deflate_fonts': True}
+            logger.info(f"Processing HIGH compression for file: {filename}")
+        else: # 'good' or default
+            compression_args = {'garbage': 4, 'deflate': True, 'clean': False, 'deflate_images': True, 'deflate_fonts': True}
+            logger.info(f"Processing GOOD compression for file: {filename}")
 
-        success_msg = 'Successfully compressed PDF!'
+        output_path, error_msg, original_size_val, compressed_size_val = pdf_operations.compress_pdf(
+            stream,
+            output_filename_base=base_name,
+            **compression_args # Pass the selected arguments
+        )
+
+        success_msg = f'Successfully compressed PDF "{filename}" (Level: {level.capitalize()})!'
+        
+        if not error_msg and output_path and original_size_val is not None and compressed_size_val is not None:
+            session['compression_stats'] = {
+                'original_size': original_size_val,
+                'compressed_size': compressed_size_val,
+                'original_filename': filename,
+                'compression_level': level.capitalize() # Store level for display
+            }
+        
         return process_and_get_download(output_path, error_msg, success_msg, "Compress PDF")
 
     except Exception as e:
@@ -663,9 +705,82 @@ def compress_route():
         return redirect(url_for('pdf_tools_page'))
     finally:
         if stream:
-             try: stream.close()
-             except Exception: pass
-        cleanup_temp_file(temp_pdf_path) # Clean up the temp PDF used for compression
+            try: stream.close()
+            except Exception: pass
+        # cleanup_temp_file(temp_pdf_path) # temp_pdf_path for input stream is now handled inside compress_pdf
+
+# ... (other import statements and app setup) ...
+
+@app.route('/text-to-pdf', methods=['POST'])
+def text_to_pdf_route():
+    text_to_convert = None
+    original_input_name = "custom_text" # Default for textarea input
+
+    try:
+        # Prioritize text from textarea
+        pasted_text = request.form.get('text_content', '').strip()
+
+        txt_file_stream = None
+        txt_filename = None
+
+        # Check if a file was uploaded in the 'txt_file' field
+        if 'txt_file' in request.files and request.files['txt_file'].filename != '':
+            file_obj = request.files['txt_file']
+            if file_obj and allowed_file(file_obj.filename, {'txt'}):
+                txt_filename = secure_filename(file_obj.filename)
+                original_input_name = Path(txt_filename).stem 
+                try:
+                    file_obj.seek(0, io.SEEK_END)
+                    file_size = file_obj.tell()
+                    file_obj.seek(0)
+                    LIMIT_TEXT_INPUT = 5 * MB 
+                    if file_size > LIMIT_TEXT_INPUT:
+                        flash(f"Text file size ({file_size / MB:.1f}MB) exceeds the {LIMIT_TEXT_INPUT / MB:.0f}MB limit.", "error")
+                        return redirect(url_for('pdf_tools_page'))
+
+                    txt_file_stream = io.BytesIO(file_obj.read())
+                    txt_file_stream.filename = txt_filename 
+                except Exception as read_err:
+                    logger.error(f"Error reading uploaded .txt file {txt_filename}: {read_err}", exc_info=True)
+                    flash(f"Error reading .txt file: {txt_filename}", "error")
+                    return redirect(url_for('pdf_tools_page'))
+            elif file_obj: 
+                flash(f'Invalid file type: {file_obj.filename}. Only .txt allowed.', 'error')
+                return redirect(url_for('pdf_tools_page'))
+
+        if pasted_text:
+            text_to_convert = pasted_text
+            logger.info(f"Processing text from textarea for Text-to-PDF. Length: {len(pasted_text)}")
+        elif txt_file_stream:
+            try:
+                text_to_convert = txt_file_stream.getvalue().decode('utf-8') 
+                logger.info(f"Processing text from uploaded file '{txt_filename}' for Text-to-PDF. Length: {len(text_to_convert)}")
+            except UnicodeDecodeError:
+                logger.error(f"Error decoding .txt file '{txt_filename}'. Please ensure it is UTF-8 encoded.")
+                flash(f"Could not decode .txt file '{txt_filename}'. Please ensure it's UTF-8 encoded.", 'error')
+                return redirect(url_for('pdf_tools_page'))
+            finally:
+                if txt_file_stream: txt_file_stream.close()
+        else:
+            flash('No text provided. Please paste text or upload a .txt file.', 'error')
+            return redirect(url_for('pdf_tools_page'))
+
+        if not text_to_convert: 
+            flash('Empty text content. Cannot create PDF.', 'error')
+            return redirect(url_for('pdf_tools_page'))
+
+        output_path, error_msg = pdf_operations.text_to_pdf(text_to_convert, output_filename_base=original_input_name)
+
+        success_msg = f'Successfully converted text ("{original_input_name}") to PDF!'
+        return process_and_get_download(output_path, error_msg, success_msg, "Text to PDF")
+
+    except Exception as e:
+        logger.error(f"Unexpected error in /text-to-pdf route: {e}", exc_info=True)
+        flash("An unexpected server error occurred during Text to PDF conversion.", 'error')
+        return redirect(url_for('pdf_tools_page'))
+    finally:
+        pass
+
 
 # --- NEW: PDF to Word Route ---
 @app.route('/pdf-to-word', methods=['POST'])
